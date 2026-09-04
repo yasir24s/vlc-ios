@@ -869,3 +869,51 @@
 "SHARE_EXTENSION_IMPORTING" = "Adding to VLC…";
 "SHARE_EXTENSION_IMPORTED" = "Added to VLC";
 "SHARE_EXTENSION_FAILED" = "Could not add to VLC";
+
+/* New strings */
+"%.0f%% - %@/s - %d peers" = "%1$.0f%% - %2$@/s - %3$d peers";
+"Checking resume data" = "Checking resume data";
+"Completed" = "Completed";
+"Failed" = "Failed";
+"Fetching torrent metadata" = "Fetching torrent metadata";
+"Not enough free space on this device." = "Not enough free space on this device.";
+"Paused" = "Paused";
+"Seeding" = "Seeding";
+"That link carries no usable torrent hash." = "That link carries no usable torrent hash.";
+"That torrent has already been added." = "That torrent has already been added.";
+"The torrent engine is not running." = "The torrent engine is not running.";
+"Verifying files" = "Verifying files";
+
+/* New strings */
+"%@\n%d peers" = "%1$@\n%2$d peers";
+"Cancel" = "Cancel";
+"Contacting the swarm..." = "Contacting the swarm...";
+"OK" = "OK";
+"Opening torrent" = "Opening torrent";
+"That torrent could not be added." = "That torrent could not be added.";
+"The streaming bridge is unavailable." = "The streaming bridge is unavailable.";
+"The torrent was removed." = "The torrent was removed.";
+"This torrent contains no playable media." = "This torrent contains no playable media.";
+"Timed out finding peers for this torrent." = "Timed out finding peers for this torrent.";
+"Torrent" = "Torrent";
+
+/* New strings */
+"Add torrent" = "Add torrent";
+"At least one file must be included." = "At least one file must be included.";
+"Download" = "Download";
+"Exclude" = "Exclude";
+"Include" = "Include";
+"No torrents.\nAdd a magnet link to stream or download." = "No torrents.\nAdd a magnet link to stream or download.";
+"Paste a magnet link." = "Paste a magnet link.";
+"Pause" = "Pause";
+"Remove and delete files" = "Remove and delete files";
+"Remove and keep files" = "Remove and keep files";
+"Remove this torrent?" = "Remove this torrent?";
+"Remove" = "Remove";
+"Resume" = "Resume";
+"Still fetching this torrent's file list." = "Still fetching this torrent's file list.";
+"Stream" = "Stream";
+"Tap a media file to stream it. Swipe to include or exclude a file from the download." = "Tap a media file to stream it. Swipe to include or exclude a file from the download.";
+"That does not look like a magnet link." = "That does not look like a magnet link.";
+"That torrent is no longer available." = "That torrent is no longer available.";
+"Torrents" = "Torrents";

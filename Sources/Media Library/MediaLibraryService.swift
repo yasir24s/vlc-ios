@@ -238,6 +238,12 @@ class MediaLibraryService: NSObject {
             NotificationCenter.default.addObserver(self, selector: #selector(reload),
                                                    name: .VLCNewFileAddedNotification, object: nil)
 
+            // A completed torrent download is the same event as any other
+            // finished download: new files under the Documents entry point.
+            NotificationCenter.default.addObserver(self,
+                                                   selector: #selector(handleTorrentDidFinish(_:)),
+                                                   name: .VLCTorrentDidFinish, object: nil)
+
             #if !os(watchOS)
             NotificationCenter.default.addObserver(self, selector: #selector(handleWillEnterForegroundNotification),
                                                    name: UIApplication.willEnterForegroundNotification, object: nil)
@@ -501,6 +507,14 @@ private extension MediaLibraryService {
 @objc extension MediaLibraryService {
     @objc func reload() {
         medialib.reload()
+    }
+
+    /// Torrent downloads land in Documents/Torrents, which is inside the
+    /// medialibrary's entry point, so a reload is enough to index them.
+    @objc func handleTorrentDidFinish(_ notification: Notification) {
+        let savePath = notification.userInfo?[VLCTorrentSavePathKey] as? String
+        APLog("MediaLibraryService: torrent finished at \(savePath ?? "?"), reloading")
+        reload()
     }
 
     @objc func forceRescan() {

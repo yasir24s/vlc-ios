@@ -67,4 +67,7 @@
 #import "VLCDropboxController.h"
 #import "VLCPCloudConstants.h"
 #import "VLCBoxTableViewController.h"
+#import "VLCTorrentService.h"
+#import "VLCTorrentHTTPServer.h"
+#import "VLCTorrentPlaybackCoordinator.h"
 #endif

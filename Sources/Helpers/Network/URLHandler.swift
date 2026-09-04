@@ -204,6 +204,7 @@ extension VLCURLHandler {
     @objc static let handlers =
         [
             googleURLHandler,
+            VLCTorrentURLHandler(),
             DropBoxURLHandler(),
             FileURLHandler(),
             XCallbackURLHandler(),
