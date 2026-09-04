@@ -7,6 +7,8 @@
 #import "VLCTorrentPlaybackCoordinator.h"
 #import "VLCTorrentService.h"
 
+#import "VLCTorrentHTTPServer.h"
+
 @interface VLCTorrentFilesViewController () <UITableViewDataSource, UITableViewDelegate>
 @property (nonatomic, copy) NSString *infoHash;
 @property (nonatomic) UITableView *tableView;
@@ -48,7 +50,19 @@
         [self.tableView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
     ]];
 
+    if (self.presentedAsChooser) {
+        self.navigationItem.rightBarButtonItem =
+            [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone
+                                                          target:self
+                                                          action:@selector(dismissChooser)];
+    }
+
     [self reload];
+}
+
+- (void)dismissChooser
+{
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 
 - (void)reload
@@ -59,15 +73,32 @@
 
 #pragma mark - UITableViewDataSource
 
+- (BOOL)hasPlayAllRow
+{
+    return self.presentedAsChooser;
+}
+
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
-    return (NSInteger)self.files.count;
+    return (NSInteger)self.files.count + (self.hasPlayAllRow ? 1 : 0);
+}
+
+/// Index into self.files, or NSNotFound for the "Play all" row.
+- (NSUInteger)fileIndexForRow:(NSInteger)row
+{
+    if (self.hasPlayAllRow) {
+        return row == 0 ? NSNotFound : (NSUInteger)(row - 1);
+    }
+    return (NSUInteger)row;
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section
 {
-    return NSLocalizedString(@"Tap a media file to stream it. Swipe to include or "
-                             @"exclude a file from the download.", nil);
+    // Whether everything is being fetched depends on how the torrent was
+    // added -- Download wants the lot, Stream only what you open -- so say
+    // what is actually happening rather than promising one of the two.
+    return NSLocalizedString(@"Tap any file to stream it now or download it to keep. "
+                             @"Files marked \u201cfetching\u201d are being downloaded.", nil);
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
@@ -75,25 +106,37 @@
 {
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"FileCell"
                                                             forIndexPath:indexPath];
-    VLCTorrentFile *file = self.files[indexPath.row];
+
+    NSUInteger const index = [self fileIndexForRow:indexPath.row];
+    if (index == NSNotFound) {
+        UIListContentConfiguration *playAll = [UIListContentConfiguration cellConfiguration];
+        playAll.text = NSLocalizedString(@"Play all from the start", nil);
+        playAll.image = [UIImage systemImageNamed:@"play.circle.fill"];
+        playAll.textProperties.color = UIColor.systemBlueColor;
+        cell.contentConfiguration = playAll;
+        cell.accessoryType = UITableViewCellAccessoryNone;
+        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+        return cell;
+    }
+
+    VLCTorrentFile *file = self.files[index];
 
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     content.text = file.name;
-    content.secondaryText = [self.byteFormatter stringFromByteCount:file.size];
+    // "Only the files you pick are fetched" is only reassuring if you can see
+    // which ones those are.
+    NSString *size = [self.byteFormatter stringFromByteCount:file.size];
+    content.secondaryText = file.isWanted
+        ? [NSString stringWithFormat:NSLocalizedString(@"%@ - fetching", nil), size]
+        : size;
     if (file.isPlayable) {
         content.image = [UIImage systemImageNamed:@"play.rectangle"];
     } else {
         content.image = [UIImage systemImageNamed:@"doc"];
     }
-    // Excluded files stay visible but obviously inert.
-    content.textProperties.color = file.isWanted ? UIColor.labelColor
-                                                 : UIColor.tertiaryLabelColor;
     cell.contentConfiguration = content;
-
-    cell.accessoryType = file.isWanted ? UITableViewCellAccessoryCheckmark
-                                       : UITableViewCellAccessoryNone;
-    cell.selectionStyle = file.isPlayable ? UITableViewCellSelectionStyleDefault
-                                          : UITableViewCellSelectionStyleNone;
+    cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
     return cell;
 }
 
@@ -103,61 +146,81 @@
 {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
 
-    VLCTorrentFile *file = self.files[indexPath.row];
-    if (!file.isPlayable) {
+    NSUInteger const index = [self fileIndexForRow:indexPath.row];
+    if (index == NSNotFound) {
+        [self playAllFromStart];
         return;
     }
-    [[VLCTorrentPlaybackCoordinator sharedCoordinator] streamFileIndex:file.index
-                                                 ofTorrentWithInfoHash:self.infoHash
-                                                  presentingController:self];
+    [self presentChoicesForFile:self.files[index]
+                       fromCell:[tableView cellForRowAtIndexPath:indexPath]];
 }
 
-- (UISwipeActionsConfiguration *)tableView:(UITableView *)tableView
-    trailingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath
+- (void)playAllFromStart
 {
-    VLCTorrentFile *file = self.files[indexPath.row];
+    NSInteger const first = [VLCTorrentService.sharedService
+        primaryPlayableFileIndexForTorrentWithInfoHash:self.infoHash];
+    if (first == NSNotFound) {
+        return;
+    }
+    [self streamFileIndex:first];
+}
+
+/// Stream and download are offered per file rather than as a mode for the whole
+/// torrent, so one episode can be playing while another is being kept.
+- (void)presentChoicesForFile:(VLCTorrentFile *)file fromCell:(nullable UITableViewCell *)cell
+{
+    UIAlertController *sheet = [UIAlertController
+        alertControllerWithTitle:file.name
+                         message:[self.byteFormatter stringFromByteCount:file.size]
+                  preferredStyle:UIAlertControllerStyleActionSheet];
+
     __weak VLCTorrentFilesViewController *weakSelf = self;
+    if (file.isPlayable) {
+        [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Stream now", nil)
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(UIAlertAction *action) {
+            [weakSelf streamFileIndex:file.index];
+        }]];
+    }
 
-    UIContextualAction *toggle = [UIContextualAction
-        contextualActionWithStyle:UIContextualActionStyleNormal
-                            title:file.isWanted ? NSLocalizedString(@"Exclude", nil)
-                                                : NSLocalizedString(@"Include", nil)
-                          handler:^(UIContextualAction *action, UIView *view,
-                                    void (^completion)(BOOL)) {
-        [weakSelf setFile:file wanted:!file.isWanted];
-        completion(YES);
-    }];
-    toggle.backgroundColor = file.isWanted ? UIColor.systemGrayColor : UIColor.systemBlueColor;
-    return [UISwipeActionsConfiguration configurationWithActions:@[toggle]];
+    [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Download and keep", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        [VLCTorrentService.sharedService keepFileIndex:file.index
+                                 inTorrentWithInfoHash:weakSelf.infoHash];
+        [weakSelf reload];
+        if (weakSelf.presentedAsChooser) {
+            [weakSelf dismissChooser];
+        }
+    }]];
+
+    [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+
+    sheet.popoverPresentationController.sourceView = cell ?: self.view;
+    sheet.popoverPresentationController.sourceRect = (cell ?: self.view).bounds;
+    [self presentViewController:sheet animated:YES completion:nil];
 }
 
-/// libtorrent takes the whole priority vector, so rebuild it from the current
-/// checkmarks with this one file flipped.
-- (void)setFile:(VLCTorrentFile *)file wanted:(BOOL)wanted
+- (void)streamFileIndex:(NSInteger)fileIndex
 {
-    NSMutableArray<NSNumber *> *indexes = [NSMutableArray array];
-    for (VLCTorrentFile *candidate in self.files) {
-        BOOL const isWanted = candidate.index == file.index ? wanted : candidate.isWanted;
-        if (isWanted) {
-            [indexes addObject:@(candidate.index)];
-        }
-    }
+    NSString *infoHash = self.infoHash;
+    VLCTorrentPlaybackCoordinator *coordinator = VLCTorrentPlaybackCoordinator.sharedCoordinator;
 
-    if (indexes.count == 0) {
-        UIAlertController *alert = [UIAlertController
-            alertControllerWithTitle:NSLocalizedString(@"Torrent", nil)
-                             message:NSLocalizedString(@"At least one file must be included.", nil)
-                      preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"OK", nil)
-                                                  style:UIAlertActionStyleDefault
-                                                handler:nil]];
-        [self presentViewController:alert animated:YES completion:nil];
+    // As a chooser this is presented modally, so get out of the way first or
+    // the player has nowhere to appear.
+    if (self.presentedAsChooser) {
+        [self dismissViewControllerAnimated:YES completion:^{
+            [coordinator streamFileIndex:fileIndex
+                   ofTorrentWithInfoHash:infoHash
+                    presentingController:nil];
+        }];
         return;
     }
-
-    [VLCTorrentService.sharedService setWantedFileIndexes:indexes
-                                   forTorrentWithInfoHash:self.infoHash];
-    [self reload];
+    [coordinator streamFileIndex:fileIndex
+           ofTorrentWithInfoHash:infoHash
+            presentingController:self];
 }
 
 @end

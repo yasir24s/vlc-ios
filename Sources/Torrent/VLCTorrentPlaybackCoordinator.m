@@ -6,6 +6,7 @@
 
 #import "VLCPlaybackService.h"
 #import "VLCTorrentHTTPServer.h"
+#import "VLCTorrentFilesViewController.h"
 #import "VLCTorrentService.h"
 
 /// Fetching metadata for a magnet means finding peers first, so this can take
@@ -32,6 +33,7 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
     NSDate *_startDate;
     NSInteger _prebufferFileIndex;
     NSDate *_prebufferStart;
+    __weak UIViewController *_presenter;
 }
 
 - (instancetype)init
@@ -148,6 +150,7 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
 
     _pendingInfoHash = infoHash;
     _startDate = [NSDate date];
+    _presenter = controller;
     [self presentProgressOverController:controller];
 
     // If metadata is already cached from a previous add, this resolves at once.
@@ -185,6 +188,15 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
 
     if (info.hasMetadata) {
         if (_prebufferFileIndex == NSNotFound) {
+            // More than one thing to watch means the choice is the user's, not
+            // ours. A single-file torrent still just plays.
+            NSArray<VLCTorrentFile *> *ordered =
+                [service playableFilesInPlaybackOrderForTorrentWithInfoHash:infoHash];
+            if (ordered.count > 1) {
+                [self presentChooserForInfoHash:infoHash name:info.name];
+                return;
+            }
+
             NSInteger fileIndex =
                 [service primaryPlayableFileIndexForTorrentWithInfoHash:infoHash];
             if (fileIndex == NSNotFound) {
@@ -328,6 +340,37 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
         [[VLCPlaybackService sharedInstance] playMediaList:mediaList
                                                 firstIndex:startIndex
                                          subtitlesFilePath:nil];
+    }];
+}
+
+/// Hands the torrent over to the file list and steps out of the flow: whatever
+/// the user picks there re-enters through -streamFileIndex: or -keepFileIndex:.
+- (void)presentChooserForInfoHash:(NSString *)infoHash name:(NSString *)name
+{
+    UIViewController *presenter = [self topViewControllerFrom:_presenter];
+    if (!presenter) {
+        // Nowhere to show it, so fall back to just playing the first episode.
+        NSInteger const first = [VLCTorrentService.sharedService
+            primaryPlayableFileIndexForTorrentWithInfoHash:infoHash];
+        if (first != NSNotFound) {
+            _prebufferFileIndex = first;
+            _prebufferStart = [NSDate date];
+        }
+        return;
+    }
+
+    _pendingInfoHash = nil;
+    _prebufferFileIndex = NSNotFound;
+    [self stopPolling];
+
+    VLCTorrentFilesViewController *files =
+        [[VLCTorrentFilesViewController alloc] initWithInfoHash:infoHash title:name];
+    files.presentedAsChooser = YES;
+    UINavigationController *navigation =
+        [[UINavigationController alloc] initWithRootViewController:files];
+
+    [self dismissProgressWithCompletion:^{
+        [presenter presentViewController:navigation animated:YES completion:nil];
     }];
 }
 

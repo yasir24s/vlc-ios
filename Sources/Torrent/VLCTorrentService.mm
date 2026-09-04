@@ -10,6 +10,7 @@
 #include <atomic>
 #include <exception>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -58,6 +59,10 @@ std::string HashKey(lt::info_hash_t const &hashes)
 struct Record {
     lt::torrent_handle handle;
     VLCTorrentMode mode = VLCTorrentModeDownload;
+    /// Files the user explicitly asked to keep. Stream-mode prioritisation
+    /// zeroes everything it is not currently reading, which would otherwise
+    /// silently cancel a download the user started on another file.
+    std::set<int> keptFiles;
 };
 
 NSString *ToNSString(std::string const &s)
@@ -991,6 +996,38 @@ BOOL IsPlayableExtension(NSString *name)
     [self postListDidChange];
 }
 
+- (void)keepFileIndex:(NSInteger)fileIndex inTorrentWithInfoHash:(NSString *)infoHash
+{
+    NSString *destination = self.downloadDirectory;
+    [self ensureDirectory:destination];
+
+    std::string const key = infoHash.UTF8String;
+    dispatch_sync(_queue, ^{
+        auto found = _torrents.find(key);
+        if (found == _torrents.end() || !found->second.handle.is_valid()) {
+            return;
+        }
+        lt::torrent_handle const &handle = found->second.handle;
+        found->second.keptFiles.insert(static_cast<int>(fileIndex));
+
+        if (found->second.mode == VLCTorrentModeStream) {
+            // Streamed data sits in Library/Caches, which iOS may purge and the
+            // medialibrary never scans. Moving the storage keeps whatever has
+            // already been fetched instead of starting the download again.
+            handle.move_storage(destination.fileSystemRepresentation,
+                                lt::move_flags_t::always_replace_files);
+            handle.unset_flags(lt::torrent_flags::sequential_download);
+            found->second.mode = VLCTorrentModeDownload;
+            NSLog(@"VLCTorrentService: promoted %@ to a kept download", infoHash);
+        }
+
+        // Only ever raise: lowering here would cancel whatever else is running.
+        handle.file_priority(lt::file_index_t{static_cast<int>(fileIndex)},
+                             lt::top_priority);
+    });
+    [self postListDidChange];
+}
+
 - (void)prioritisePlaybackOrderForTorrentWithInfoHash:(NSString *)infoHash
 {
     NSArray<VLCTorrentFile *> *ordered =
@@ -1228,12 +1265,17 @@ BOOL IsPlayableExtension(NSString *name)
         if (found->second.mode == VLCTorrentModeStream) {
             handle.set_flags(lt::torrent_flags::sequential_download);
             int const fileCount = storage.num_files();
+            std::set<int> const &kept = found->second.keptFiles;
             std::vector<lt::download_priority_t> priorities;
             priorities.reserve(static_cast<size_t>(fileCount));
             for (int index = 0; index < fileCount; index++) {
-                priorities.push_back(index == static_cast<int>(fileIndex)
-                                         ? lt::top_priority
-                                         : lt::dont_download);
+                if (index == static_cast<int>(fileIndex)) {
+                    priorities.push_back(lt::top_priority);
+                } else if (kept.count(index) > 0) {
+                    priorities.push_back(lt::default_priority);
+                } else {
+                    priorities.push_back(lt::dont_download);
+                }
             }
             handle.prioritize_files(priorities);
         }
