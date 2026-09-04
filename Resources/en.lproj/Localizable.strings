@@ -903,7 +903,6 @@
 "Download" = "Download";
 "Exclude" = "Exclude";
 "Include" = "Include";
-"No torrents.\nAdd a magnet link to stream or download." = "No torrents.\nAdd a magnet link to stream or download.";
 "Paste a magnet link." = "Paste a magnet link.";
 "Pause" = "Pause";
 "Remove and delete files" = "Remove and delete files";
@@ -920,3 +919,15 @@
 
 /* New strings */
 "Buffering %.0f%%\n%@ - %d peers" = "Buffering %1$.0f%%\n%2$@ - %3$d peers";
+
+/* New strings */
+"Active" = "Active";
+"Copy link" = "Copy link";
+"Forget" = "Forget";
+"Last opened %@" = "Last opened %@";
+"No torrents yet.\nAdd a magnet link and it will be saved here for next time." = "No torrents yet.\nAdd a magnet link and it will be saved here for next time.";
+"Not opened yet" = "Not opened yet";
+"Rename" = "Rename";
+"Save" = "Save";
+"Saved" = "Saved";
+"Untitled torrent" = "Untitled torrent";

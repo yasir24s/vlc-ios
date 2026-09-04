@@ -1557,6 +1557,7 @@
 		E0C04F951A25B4410080331A /* VLCDocumentPickerController.m in Sources */ = {isa = PBXBuildFile; fileRef = E0C04F941A25B4410080331A /* VLCDocumentPickerController.m */; };
 		E0F8980422D399E10061DB2F /* MediaScrubProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F8980322D399E10061DB2F /* MediaScrubProgressBar.swift */; };
 		E38141E0B655FBEE047D9214 /* VLCActiveDownloadCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 25514A95AD71903F66BDB68B /* VLCActiveDownloadCell.m */; };
+		E5F6DC946800D74A45B76430 /* VLCTorrentLibrary.m in Sources */ = {isa = PBXBuildFile; fileRef = D0A78571E21F3B6E6A0C51FD /* VLCTorrentLibrary.m */; };
 		E77833315D74A3AB4A5C4677 /* PodcastsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EBF8DA0B16136EBFED6F35B /* PodcastsViewController.swift */; };
 		EB055E2072D22B33DFDF61BC /* GTLRDrive_File+VLCShortcut.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B5C4CB8C0C2D9862FB5E36A /* GTLRDrive_File+VLCShortcut.m */; };
 		EF800D0BE425A4B678AC8BAC /* PodcastSectionHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 600E1C387D2ECF520705C551 /* PodcastSectionHeaderView.swift */; };
@@ -2519,6 +2520,8 @@
 		CCAF837E17DE46D800E3578F /* pl */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = pl; path = pl.lproj/Localizable.strings; sourceTree = "<group>"; };
 		CCE2A22D17A5859E00D9EAAD /* CoreText.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreText.framework; path = System/Library/Frameworks/CoreText.framework; sourceTree = SDKROOT; };
 		CF575E750ED4153B0715E1D5 /* Pods-VLC-iOS.distribution.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VLC-iOS.distribution.xcconfig"; path = "Target Support Files/Pods-VLC-iOS/Pods-VLC-iOS.distribution.xcconfig"; sourceTree = "<group>"; };
+		CFCB27EC9BCB7590E726F9A7 /* VLCTorrentLibrary.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = VLCTorrentLibrary.h; path = Sources/Torrent/VLCTorrentLibrary.h; sourceTree = "<group>"; };
+		D0A78571E21F3B6E6A0C51FD /* VLCTorrentLibrary.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = VLCTorrentLibrary.m; path = Sources/Torrent/VLCTorrentLibrary.m; sourceTree = "<group>"; };
 		D0AF091E220A741300076D07 /* VLCCloudSortingSpecifierManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VLCCloudSortingSpecifierManager.swift; sourceTree = "<group>"; };
 		D1CAC6F642AF79AB21163137 /* libPods-VLC-iOS-no-watch.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-VLC-iOS-no-watch.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		D5A972311D19DEB5FC6EC0B8 /* PodcastDownloadButton.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PodcastDownloadButton.swift; sourceTree = "<group>"; };
@@ -3206,6 +3209,8 @@
 				FF4ADD6F76957E7F788646B0 /* VLCTorrentsViewController.m */,
 				DCC6D502D254E099E3A9BDCD /* VLCTorrentFilesViewController.h */,
 				FD3EEAD34AA096C04409F3AA /* VLCTorrentFilesViewController.m */,
+				CFCB27EC9BCB7590E726F9A7 /* VLCTorrentLibrary.h */,
+				D0A78571E21F3B6E6A0C51FD /* VLCTorrentLibrary.m */,
 			);
 			name = Torrent;
 			sourceTree = SOURCE_ROOT;
@@ -7005,6 +7010,7 @@
 				412103F3DAD2C79BA308251E /* VLCTorrentURLHandler.swift in Sources */,
 				8E431E29338A8691BCCE34B2 /* VLCTorrentsViewController.m in Sources */,
 				1FE41971D28DABC118D97F4F /* VLCTorrentFilesViewController.m in Sources */,
+				E5F6DC946800D74A45B76430 /* VLCTorrentLibrary.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
