@@ -6,6 +6,7 @@
 
 #import "VLCTorrentFilesViewController.h"
 #import "VLCTorrentPlaybackCoordinator.h"
+#import "VLCTorrentLibrary.h"
 #import "VLCTorrentService.h"
 
 /// Rates and peer counts move continuously and libtorrent posts no alert for
@@ -71,6 +72,7 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 @property (nonatomic) UITableView *tableView;
 @property (nonatomic) UILabel *emptyLabel;
 @property (nonatomic) NSArray<VLCTorrentInfo *> *torrents;
+@property (nonatomic) NSArray<VLCTorrentBookmark *> *saved;
 @property (nonatomic) NSTimer *refreshTimer;
 @end
 
@@ -89,6 +91,7 @@ static NSTimeInterval const kRefreshInterval = 1.0;
     self.tableView.delegate = self;
     self.tableView.rowHeight = 72;
     [self.tableView registerClass:[VLCTorrentCell class] forCellReuseIdentifier:@"TorrentCell"];
+    [self.tableView registerClass:[UITableViewCell class] forCellReuseIdentifier:@"SavedCell"];
     [self.view addSubview:self.tableView];
 
     self.emptyLabel = [[UILabel alloc] init];
@@ -97,7 +100,7 @@ static NSTimeInterval const kRefreshInterval = 1.0;
     self.emptyLabel.textAlignment = NSTextAlignmentCenter;
     self.emptyLabel.textColor = UIColor.secondaryLabelColor;
     self.emptyLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
-    self.emptyLabel.text = NSLocalizedString(@"No torrents.\nAdd a magnet link to stream or download.", nil);
+    self.emptyLabel.text = NSLocalizedString(@"No torrents yet.\nAdd a magnet link and it will be saved here for next time.", nil);
     [self.view addSubview:self.emptyLabel];
 
     [NSLayoutConstraint activateConstraints:@[
@@ -118,6 +121,10 @@ static NSTimeInterval const kRefreshInterval = 1.0;
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(refresh)
                                                  name:VLCTorrentListDidChangeNotification
+                                               object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(refresh)
+                                                 name:VLCTorrentLibraryDidChangeNotification
                                                object:nil];
 }
 
@@ -150,18 +157,35 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 - (void)refresh
 {
     self.torrents = [VLCTorrentService.sharedService allTorrents];
-    self.emptyLabel.hidden = self.torrents.count > 0;
+
+    // Anything already running is shown in the active section, so hide its
+    // saved twin rather than listing the same torrent twice.
+    NSMutableSet<NSString *> *activeHashes = [NSMutableSet set];
+    for (VLCTorrentInfo *info in self.torrents) {
+        [activeHashes addObject:info.infoHash.lowercaseString];
+    }
+    NSMutableArray<VLCTorrentBookmark *> *saved = [NSMutableArray array];
+    for (VLCTorrentBookmark *bookmark in VLCTorrentLibrary.sharedLibrary.bookmarks) {
+        if (!bookmark.infoHash || ![activeHashes containsObject:bookmark.infoHash]) {
+            [saved addObject:bookmark];
+        }
+    }
+    self.saved = saved;
+
+    self.emptyLabel.hidden = self.torrents.count > 0 || self.saved.count > 0;
 
     // Reload visible rows in place so the table doesn't fight the user's
     // scrolling or dismiss a swipe action every second.
-    if (self.tableView.numberOfSections == 1 &&
+    if (self.tableView.numberOfSections == 2 &&
         [self.tableView numberOfRowsInSection:0] == (NSInteger)self.torrents.count &&
+        [self.tableView numberOfRowsInSection:1] == (NSInteger)self.saved.count &&
         !self.tableView.isEditing) {
         for (NSIndexPath *indexPath in self.tableView.indexPathsForVisibleRows) {
-            VLCTorrentCell *cell = (VLCTorrentCell *)[self.tableView cellForRowAtIndexPath:indexPath];
-            if ((NSUInteger)indexPath.row < self.torrents.count) {
-                [cell applyInfo:self.torrents[indexPath.row]];
+            if (indexPath.section != 0 || (NSUInteger)indexPath.row >= self.torrents.count) {
+                continue;
             }
+            VLCTorrentCell *cell = (VLCTorrentCell *)[self.tableView cellForRowAtIndexPath:indexPath];
+            [cell applyInfo:self.torrents[indexPath.row]];
         }
         return;
     }
@@ -216,6 +240,8 @@ static NSTimeInterval const kRefreshInterval = 1.0;
         return;
     }
 
+    [VLCTorrentLibrary.sharedLibrary rememberMagnetURI:trimmed];
+
     if (stream) {
         [[VLCTorrentPlaybackCoordinator sharedCoordinator] streamMagnetURI:trimmed
                                                       presentingController:self];
@@ -233,6 +259,61 @@ static NSTimeInterval const kRefreshInterval = 1.0;
     [self refresh];
 }
 
+#pragma mark - Saved torrents
+
+- (void)openBookmark:(VLCTorrentBookmark *)bookmark
+{
+    UIAlertController *sheet = [UIAlertController
+        alertControllerWithTitle:bookmark.name
+                         message:nil
+                  preferredStyle:UIAlertControllerStyleActionSheet];
+
+    __weak VLCTorrentsViewController *weakSelf = self;
+    [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Stream", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        [VLCTorrentLibrary.sharedLibrary markBookmarkOpened:bookmark];
+        [weakSelf handleMagnet:bookmark.magnetURI stream:YES];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Download", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        [VLCTorrentLibrary.sharedLibrary markBookmarkOpened:bookmark];
+        [weakSelf handleMagnet:bookmark.magnetURI stream:NO];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+
+    sheet.popoverPresentationController.sourceView = self.tableView;
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+
+- (void)renameBookmark:(VLCTorrentBookmark *)bookmark
+{
+    UIAlertController *alert = [UIAlertController
+        alertControllerWithTitle:NSLocalizedString(@"Rename", nil)
+                         message:nil
+                  preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.text = bookmark.name;
+        field.clearButtonMode = UITextFieldViewModeWhileEditing;
+    }];
+
+    __weak VLCTorrentsViewController *weakSelf = self;
+    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Save", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        [VLCTorrentLibrary.sharedLibrary renameBookmark:bookmark
+                                                     to:alert.textFields.firstObject.text];
+        [weakSelf refresh];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+
 - (void)presentMessage:(NSString *)message
 {
     UIAlertController *alert = [UIAlertController
@@ -247,18 +328,50 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 
 #pragma mark - UITableViewDataSource
 
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
+{
+    return 2;
+}
+
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
 {
-    return (NSInteger)self.torrents.count;
+    return section == 0 ? (NSInteger)self.torrents.count : (NSInteger)self.saved.count;
+}
+
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
+{
+    if (section == 0) {
+        return self.torrents.count > 0 ? NSLocalizedString(@"Active", nil) : nil;
+    }
+    return self.saved.count > 0 ? NSLocalizedString(@"Saved", nil) : nil;
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath
 {
-    VLCTorrentCell *cell = [tableView dequeueReusableCellWithIdentifier:@"TorrentCell"
-                                                           forIndexPath:indexPath];
-    [cell applyInfo:self.torrents[indexPath.row]];
-    cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+    if (indexPath.section == 0) {
+        VLCTorrentCell *cell = [tableView dequeueReusableCellWithIdentifier:@"TorrentCell"
+                                                               forIndexPath:indexPath];
+        [cell applyInfo:self.torrents[indexPath.row]];
+        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        return cell;
+    }
+
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"SavedCell"
+                                                            forIndexPath:indexPath];
+    VLCTorrentBookmark *bookmark = self.saved[indexPath.row];
+    UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
+    content.text = bookmark.name;
+    content.image = [UIImage systemImageNamed:@"bookmark"];
+    if (bookmark.lastOpened) {
+        NSRelativeDateTimeFormatter *formatter = [[NSRelativeDateTimeFormatter alloc] init];
+        content.secondaryText = [NSString stringWithFormat:NSLocalizedString(@"Last opened %@", nil),
+            [formatter localizedStringForDate:bookmark.lastOpened relativeToDate:[NSDate date]]];
+    } else {
+        content.secondaryText = NSLocalizedString(@"Not opened yet", nil);
+    }
+    cell.contentConfiguration = content;
+    cell.accessoryType = UITableViewCellAccessoryNone;
     return cell;
 }
 
@@ -267,6 +380,12 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
 {
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
+
+    if (indexPath.section == 1) {
+        [self openBookmark:self.saved[indexPath.row]];
+        return;
+    }
+
     VLCTorrentInfo *info = self.torrents[indexPath.row];
     if (!info.hasMetadata) {
         [self presentMessage:NSLocalizedString(@"Still fetching this torrent's file list.", nil)];
@@ -280,6 +399,43 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 - (UISwipeActionsConfiguration *)tableView:(UITableView *)tableView
     trailingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath
 {
+    if (indexPath.section == 1) {
+        VLCTorrentBookmark *bookmark = self.saved[indexPath.row];
+        __weak VLCTorrentsViewController *weakSelf = self;
+
+        UIContextualAction *forget = [UIContextualAction
+            contextualActionWithStyle:UIContextualActionStyleDestructive
+                                title:NSLocalizedString(@"Forget", nil)
+                              handler:^(UIContextualAction *action, UIView *view,
+                                        void (^completion)(BOOL)) {
+            [VLCTorrentLibrary.sharedLibrary removeBookmark:bookmark];
+            [weakSelf refresh];
+            completion(YES);
+        }];
+
+        UIContextualAction *rename = [UIContextualAction
+            contextualActionWithStyle:UIContextualActionStyleNormal
+                                title:NSLocalizedString(@"Rename", nil)
+                              handler:^(UIContextualAction *action, UIView *view,
+                                        void (^completion)(BOOL)) {
+            [weakSelf renameBookmark:bookmark];
+            completion(YES);
+        }];
+        rename.backgroundColor = UIColor.systemBlueColor;
+
+        UIContextualAction *copy = [UIContextualAction
+            contextualActionWithStyle:UIContextualActionStyleNormal
+                                title:NSLocalizedString(@"Copy link", nil)
+                              handler:^(UIContextualAction *action, UIView *view,
+                                        void (^completion)(BOOL)) {
+            UIPasteboard.generalPasteboard.string = bookmark.magnetURI;
+            completion(YES);
+        }];
+        copy.backgroundColor = UIColor.systemGrayColor;
+
+        return [UISwipeActionsConfiguration configurationWithActions:@[forget, rename, copy]];
+    }
+
     VLCTorrentInfo *info = self.torrents[indexPath.row];
     VLCTorrentService *service = VLCTorrentService.sharedService;
     __weak VLCTorrentsViewController *weakSelf = self;
