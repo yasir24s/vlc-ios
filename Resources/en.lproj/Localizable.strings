@@ -899,10 +899,7 @@
 
 /* New strings */
 "Add torrent" = "Add torrent";
-"At least one file must be included." = "At least one file must be included.";
 "Download" = "Download";
-"Exclude" = "Exclude";
-"Include" = "Include";
 "Paste a magnet link." = "Paste a magnet link.";
 "Pause" = "Pause";
 "Remove and delete files" = "Remove and delete files";
@@ -912,7 +909,6 @@
 "Resume" = "Resume";
 "Still fetching this torrent's file list." = "Still fetching this torrent's file list.";
 "Stream" = "Stream";
-"Tap a media file to stream it. Swipe to include or exclude a file from the download." = "Tap a media file to stream it. Swipe to include or exclude a file from the download.";
 "That does not look like a magnet link." = "That does not look like a magnet link.";
 "That torrent is no longer available." = "That torrent is no longer available.";
 "Torrents" = "Torrents";
@@ -931,3 +927,14 @@
 "Save" = "Save";
 "Saved" = "Saved";
 "Untitled torrent" = "Untitled torrent";
+
+/* New strings */
+"Download and keep" = "Download and keep";
+"Play all from the start" = "Play all from the start";
+"Stream now" = "Stream now";
+
+/* New strings */
+"%@ - fetching" = "%@ - fetching";
+
+/* New strings */
+"Tap any file to stream it now or download it to keep. Files marked “fetching” are being downloaded." = "Tap any file to stream it now or download it to keep. Files marked “fetching” are being downloaded.";

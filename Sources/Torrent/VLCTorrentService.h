@@ -131,6 +131,12 @@ typedef NS_ERROR_ENUM(VLCTorrentErrorDomain, VLCTorrentError) {
 - (void)resumeTorrentWithInfoHash:(NSString *)infoHash;
 - (void)removeTorrentWithInfoHash:(NSString *)infoHash deletingFiles:(BOOL)deleteFiles;
 
+/// Fetch and keep one file: moves a streaming torrent's data out of the
+/// purgeable cache into the library-visible directory, and raises that file's
+/// priority. Never lowers anything, so a file already streaming or downloading
+/// keeps going.
+- (void)keepFileIndex:(NSInteger)fileIndex inTorrentWithInfoHash:(NSString *)infoHash;
+
 /// Bias a download toward playback order, so episode one lands first instead
 /// of every episode creeping forward together. No-op before metadata.
 - (void)prioritisePlaybackOrderForTorrentWithInfoHash:(NSString *)infoHash;
