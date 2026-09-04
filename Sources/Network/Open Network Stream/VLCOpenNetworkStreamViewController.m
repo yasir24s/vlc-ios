@@ -13,6 +13,7 @@
  *****************************************************************************/
 
 #import "VLCOpenNetworkStreamViewController.h"
+#import "VLCTorrentPlaybackCoordinator.h"
 #import "VLCPlaybackService.h"
 #import "VLCStreamingHistoryCell.h"
 #import "VLC-Swift.h"
@@ -898,6 +899,14 @@ contextMenuConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath
 {
     [[ParentalControlCoordinator sharedInstance] authorizeIfParentalControlIsEnabledWithAction:^{
         NSURL *playbackURL = [NSURL URLWithString:url];
+
+        // libvlc has no torrent input, so magnets and .torrent files are routed
+        // through the torrent engine and come back as a loopback HTTP URL.
+        if ([VLCTorrentPlaybackCoordinator canHandleURLString:url]) {
+            [[VLCTorrentPlaybackCoordinator sharedCoordinator] streamMagnetURI:url
+                                                          presentingController:nil];
+            return;
+        }
 
         VLCMedia *media = [VLCMedia mediaWithURL:playbackURL];
 
