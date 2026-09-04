@@ -917,3 +917,6 @@
 "That does not look like a magnet link." = "That does not look like a magnet link.";
 "That torrent is no longer available." = "That torrent is no longer available.";
 "Torrents" = "Torrents";
+
+/* New strings */
+"Buffering %.0f%%\n%@ - %d peers" = "Buffering %1$.0f%%\n%2$@ - %3$d peers";
