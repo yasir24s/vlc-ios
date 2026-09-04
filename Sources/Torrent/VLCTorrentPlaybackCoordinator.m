@@ -13,11 +13,35 @@
 static NSTimeInterval const kMetadataTimeout = 90.0;
 static NSTimeInterval const kMetadataPollInterval = 0.5;
 
+/// Handing libvlc a file with nothing on disk makes its first probe find no
+/// duration, so it treats the input as a live stream: no scrubber, and audio
+/// placeholder art until pieces land. Fetch a slice of each end first.
+///
+/// The tail matters as much as the head. Matroska normally stores its Cues --
+/// the seek index -- at the *end* of the file, and without them VLC cannot
+/// build a timeline no matter how much of the beginning it has.
+static int64_t const kPrebufferHeadBytes = 4 * 1024 * 1024;
+static int64_t const kPrebufferTailBytes = 1 * 1024 * 1024;
+/// Play anyway rather than hang forever on a slow swarm.
+static NSTimeInterval const kPrebufferTimeout = 45.0;
+
 @implementation VLCTorrentPlaybackCoordinator {
     UIAlertController *_progressAlert;
     NSString *_pendingInfoHash;
     NSTimer *_pollTimer;
     NSDate *_startDate;
+    NSInteger _prebufferFileIndex;
+    NSDate *_prebufferStart;
+}
+
+- (instancetype)init
+{
+    self = [super init];
+    if (self) {
+        // 0 is a legitimate file index, so idle has to be NSNotFound.
+        _prebufferFileIndex = NSNotFound;
+    }
+    return self;
 }
 
 + (VLCTorrentPlaybackCoordinator *)sharedCoordinator
@@ -84,8 +108,11 @@ static NSTimeInterval const kMetadataPollInterval = 0.5;
                 controller:controller];
         return;
     }
-    // Metadata is already in hand, so this needs no waiting UI.
-    [self playTorrentWithInfoHash:infoHash fileIndex:fileIndex name:info.name];
+
+    // Metadata is already in hand, but the bytes still are not, so this takes
+    // the same buffering path as a fresh magnet.
+    _prebufferFileIndex = fileIndex;
+    [self beginWaitingForInfoHash:infoHash error:nil controller:controller];
 }
 
 #pragma mark - Machinery
@@ -157,18 +184,39 @@ static NSTimeInterval const kMetadataPollInterval = 0.5;
     }
 
     if (info.hasMetadata) {
-        NSInteger fileIndex =
-            [service primaryPlayableFileIndexForTorrentWithInfoHash:infoHash];
-        if (fileIndex != NSNotFound) {
-            [self playTorrentWithInfoHash:infoHash fileIndex:fileIndex name:info.name];
+        if (_prebufferFileIndex == NSNotFound) {
+            NSInteger fileIndex =
+                [service primaryPlayableFileIndexForTorrentWithInfoHash:infoHash];
+            if (fileIndex == NSNotFound) {
+                // Metadata arrived but nothing in it is playable.
+                if ([service filesForTorrentWithInfoHash:infoHash].count > 0) {
+                    [self finishWithError:
+                        NSLocalizedString(@"This torrent contains no playable media.", nil)];
+                }
+                return;
+            }
+            _prebufferFileIndex = fileIndex;
+            _prebufferStart = [NSDate date];
+        }
+
+        float const buffered = [self prebufferProgressForInfoHash:infoHash
+                                                        fileIndex:_prebufferFileIndex];
+        BOOL const expired = -[_prebufferStart timeIntervalSinceNow] > kPrebufferTimeout;
+        if (buffered >= 1.f || expired) {
+            if (expired) {
+                NSLog(@"VLCTorrentPlaybackCoordinator: prebuffer timed out at %.0f%%, "
+                       "starting anyway", buffered * 100.f);
+            }
+            [self playTorrentWithInfoHash:infoHash
+                                fileIndex:_prebufferFileIndex
+                                     name:info.name];
             return;
         }
-        // Metadata arrived but nothing in it is playable: no point waiting.
-        if ([service filesForTorrentWithInfoHash:infoHash].count > 0) {
-            [self finishWithError:
-                NSLocalizedString(@"This torrent contains no playable media.", nil)];
-            return;
-        }
+
+        _progressAlert.message = [NSString stringWithFormat:
+            NSLocalizedString(@"Buffering %.0f%%\n%@ - %d peers", nil),
+            buffered * 100.f, info.statusDescription, info.peerCount];
+        return;
     }
 
     // Keep the user informed rather than showing a stalled spinner.
@@ -179,6 +227,48 @@ static NSTimeInterval const kMetadataPollInterval = 0.5;
         [self finishWithError:
             NSLocalizedString(@"Timed out finding peers for this torrent.", nil)];
     }
+}
+
+/// Asks for the head and tail windows and reports how much of them has landed,
+/// 0.0 to 1.0. Re-requesting every tick is deliberate: the deadlines are what
+/// pull these pieces to the front of the queue.
+- (float)prebufferProgressForInfoHash:(NSString *)infoHash fileIndex:(NSInteger)fileIndex
+{
+    VLCTorrentService *service = VLCTorrentService.sharedService;
+
+    int64_t const size = [service sizeOfFileIndex:fileIndex inTorrentWithInfoHash:infoHash];
+    if (size <= 0) {
+        return 0.f;
+    }
+
+    int64_t const head = MIN(kPrebufferHeadBytes, size);
+    int64_t const tail = MIN(kPrebufferTailBytes, size - head);
+    int64_t const tailOffset = size - tail;
+
+    [service requestFileIndex:fileIndex
+        inTorrentWithInfoHash:infoHash
+                   fileOffset:0
+                       length:head];
+    if (tail > 0) {
+        [service requestFileIndex:fileIndex
+            inTorrentWithInfoHash:infoHash
+                       fileOffset:tailOffset
+                           length:tail];
+    }
+
+    int64_t const haveHead = [service availableBytesForFileIndex:fileIndex
+                                          inTorrentWithInfoHash:infoHash
+                                                     fileOffset:0
+                                                      maxLength:head];
+    int64_t haveTail = 0;
+    if (tail > 0) {
+        haveTail = [service availableBytesForFileIndex:fileIndex
+                                inTorrentWithInfoHash:infoHash
+                                           fileOffset:tailOffset
+                                            maxLength:tail];
+    }
+
+    return (float)(haveHead + haveTail) / (float)(head + tail);
 }
 
 - (void)playTorrentWithInfoHash:(NSString *)infoHash
@@ -231,6 +321,7 @@ static NSTimeInterval const kMetadataPollInterval = 0.5;
           (unsigned long)mediaList.count, (long)startIndex);
 
     _pendingInfoHash = nil;
+    _prebufferFileIndex = NSNotFound;
     [self stopPolling];
 
     [self dismissProgressWithCompletion:^{
@@ -244,6 +335,7 @@ static NSTimeInterval const kMetadataPollInterval = 0.5;
 {
     NSString *infoHash = _pendingInfoHash;
     _pendingInfoHash = nil;
+    _prebufferFileIndex = NSNotFound;
     [self stopPolling];
 
     // Don't leave a half-added torrent burning battery in the background.
