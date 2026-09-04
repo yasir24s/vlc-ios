@@ -51,6 +51,7 @@
 #import "VLCDocumentPickerController.h"
 #import "VLCTransferViewController.h"
 #import "VLCOpenNetworkStreamViewController.h"
+#import "VLCTorrentsViewController.h"
 #if TARGET_OS_IOS
 #import "VLCPhotoLibraryController.h"
 #import "VLCCloudServicesTableViewController.h"
@@ -72,6 +73,7 @@ typedef NS_ENUM(NSInteger, VLCBrowseChip) {
     VLCBrowseChipCloud,
     VLCBrowseChipNetworkStream,
     VLCBrowseChipDownloads,
+    VLCBrowseChipTorrents,
     VLCBrowseChipWiFiSharing
 };
 
@@ -158,6 +160,7 @@ static CGFloat const kVLCBrowseSectionSpacing = 16.0;
 #endif
     [chips addObject:@(VLCBrowseChipNetworkStream)];
     [chips addObject:@(VLCBrowseChipDownloads)];
+    [chips addObject:@(VLCBrowseChipTorrents)];
     [chips addObject:@(VLCBrowseChipWiFiSharing)];
 
     return chips;
@@ -904,6 +907,8 @@ referenceSizeForHeaderInSection:(NSInteger)section
             return NSLocalizedString(@"BROWSE_NETWORK_STREAM", nil);
         case VLCBrowseChipDownloads:
             return NSLocalizedString(@"BROWSE_DOWNLOADS", nil);
+        case VLCBrowseChipTorrents:
+            return NSLocalizedString(@"Torrents", nil);
         case VLCBrowseChipWiFiSharing:
             return NSLocalizedString(@"BROWSE_WIFI_SHARING", nil);
     }
@@ -925,6 +930,11 @@ referenceSizeForHeaderInSection:(NSInteger)section
             return [UIImage imageNamed:@"OpenNetStream"];
         case VLCBrowseChipDownloads:
             return [UIImage imageNamed:@"Downloads"];
+        case VLCBrowseChipTorrents:
+            if (@available(iOS 13.0, *)) {
+                return [UIImage systemImageNamed:@"arrow.triangle.branch"];
+            }
+            return nil;
         case VLCBrowseChipWiFiSharing:
             return nil;
     }
@@ -943,6 +953,8 @@ referenceSizeForHeaderInSection:(NSInteger)section
             return VLCAccessibilityIdentifier.stream;
         case VLCBrowseChipDownloads:
             return VLCAccessibilityIdentifier.downloads;
+        case VLCBrowseChipTorrents:
+            return @"torrents";
         case VLCBrowseChipWiFiSharing:
             return nil;
     }
@@ -978,6 +990,9 @@ referenceSizeForHeaderInSection:(NSInteger)section
             break;
         case VLCBrowseChipDownloads:
             [self pushViewController:[[VLCTransferViewController alloc] init]];
+            break;
+        case VLCBrowseChipTorrents:
+            [self pushViewController:[[VLCTorrentsViewController alloc] init]];
             break;
         case VLCBrowseChipWiFiSharing: {
             VLCBrowseSharingCell *cell = (VLCBrowseSharingCell *)[_collectionView cellForItemAtIndexPath:indexPath];

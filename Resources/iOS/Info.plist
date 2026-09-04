@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>VLC</string>
+	<string>VLC Torrent</string>
 	<key>CFBundleDocumentTypes</key>
 	<array>
 		<dict>
@@ -104,6 +104,18 @@
 				<string>org.videolan.smi</string>
 				<string>org.videolan.smil</string>
 				<string>com.real.smil</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>BitTorrent File</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>org.bittorrent.torrent</string>
 			</array>
 		</dict>
 	</array>
@@ -248,6 +260,16 @@
 				<string>com.googleusercontent.apps.CLIENT</string>
 			</array>
 		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>Magnet Link</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>magnet</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
@@ -293,6 +315,8 @@
 	<true/>
 	<key>MLKitGroupIdentifier</key>
 	<string>$(GROUP_IDENTIFIER)</string>
+	<key>NSAlarmKitUsageDescription</key>
+	<string>In order to wake you up with your favorite radio station we will need access to alarms</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>
@@ -308,8 +332,6 @@
 		<string>_ftp._tcp.</string>
 		<string>_smb._tcp.</string>
 	</array>
-	<key>NSAlarmKitUsageDescription</key>
-	<string>In order to wake you up with your favorite radio station we will need access to alarms</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Enable access to Face ID to unlock VLC</string>
 	<key>NSLocalNetworkUsageDescription</key>
@@ -992,6 +1014,27 @@
 				<array>
 					<string>h264</string>
 					<string>264</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>BitTorrent File</string>
+			<key>UTTypeIdentifier</key>
+			<string>org.bittorrent.torrent</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>torrent</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/x-bittorrent</string>
 				</array>
 			</dict>
 		</dict>
