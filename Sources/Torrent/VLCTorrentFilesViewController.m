@@ -97,8 +97,9 @@
     // Whether everything is being fetched depends on how the torrent was
     // added -- Download wants the lot, Stream only what you open -- so say
     // what is actually happening rather than promising one of the two.
-    return NSLocalizedString(@"Tap any file to stream it now or download it to keep. "
-                             @"Files marked \u201cfetching\u201d are being downloaded.", nil);
+    return NSLocalizedString(@"Nothing downloads until you pick it. A streamed "
+                             @"episode is deleted when you open another one; "
+                             @"\u201ckeep\u201d saves it to your VLC library.", nil);
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
@@ -123,12 +124,20 @@
 
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     content.text = file.name;
-    // "Only the files you pick are fetched" is only reassuring if you can see
-    // which ones those are.
+    // Which files cost disk is the whole point now, so say it plainly.
+    VLCTorrentService *service = VLCTorrentService.sharedService;
     NSString *size = [self.byteFormatter stringFromByteCount:file.size];
-    content.secondaryText = file.isWanted
-        ? [NSString stringWithFormat:NSLocalizedString(@"%@ - fetching", nil), size]
-        : size;
+    if ([service isFileKept:file.index inTorrentWithInfoHash:self.infoHash]) {
+        content.secondaryText = [NSString stringWithFormat:
+            NSLocalizedString(@"%@ - kept", nil), size];
+        content.image = [UIImage systemImageNamed:@"arrow.down.circle.fill"];
+    } else if ([service isFileStreaming:file.index inTorrentWithInfoHash:self.infoHash]) {
+        content.secondaryText = [NSString stringWithFormat:
+            NSLocalizedString(@"%@ - streaming, not kept", nil), size];
+        content.image = [UIImage systemImageNamed:@"play.circle.fill"];
+    } else {
+        content.secondaryText = size;
+    }
     if (file.isPlayable) {
         content.image = [UIImage systemImageNamed:@"play.rectangle"];
     } else {

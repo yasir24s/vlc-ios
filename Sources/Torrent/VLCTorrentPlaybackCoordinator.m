@@ -114,6 +114,8 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
     // Metadata is already in hand, but the bytes still are not, so this takes
     // the same buffering path as a fresh magnet.
     _prebufferFileIndex = fileIndex;
+    [VLCTorrentService.sharedService streamFileIndex:fileIndex
+                               inTorrentWithInfoHash:infoHash];
     [self beginWaitingForInfoHash:infoHash error:nil controller:controller];
 }
 
@@ -209,6 +211,8 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
             }
             _prebufferFileIndex = fileIndex;
             _prebufferStart = [NSDate date];
+            // Registers the pick, and evicts whatever was streamed before it.
+            [service streamFileIndex:fileIndex inTorrentWithInfoHash:infoHash];
         }
 
         float const buffered = [self prebufferProgressForInfoHash:infoHash
