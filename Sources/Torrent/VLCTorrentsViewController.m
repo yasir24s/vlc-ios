@@ -78,12 +78,29 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 
 @implementation VLCTorrentsViewController
 
+- (instancetype)init
+{
+    self = [super initWithNibName:nil bundle:nil];
+    if (self) {
+        // The tab bar reads this before the view ever loads, and tvOS tabs are
+        // text-only -- setting it in viewDidLoad leaves an invisible tab.
+        self.title = NSLocalizedString(@"Torrents", nil);
+        self.tabBarItem.title = NSLocalizedString(@"Torrents", nil);
+    }
+    return self;
+}
+
 - (void)viewDidLoad
 {
     [super viewDidLoad];
 
     self.title = NSLocalizedString(@"Torrents", nil);
+#if TARGET_OS_TV
+    // tvOS has no systemBackgroundColor; the platform supplies the backdrop.
+    self.view.backgroundColor = UIColor.clearColor;
+#else
     self.view.backgroundColor = UIColor.systemBackgroundColor;
+#endif
 
     self.tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
     self.tableView.translatesAutoresizingMaskIntoConstraints = NO;
@@ -208,10 +225,12 @@ static NSTimeInterval const kRefreshInterval = 1.0;
         field.clearButtonMode = UITextFieldViewModeWhileEditing;
         // Offer whatever is on the clipboard, which is nearly always how a
         // magnet link arrives.
+#if !TARGET_OS_TV
         NSString *pasted = UIPasteboard.generalPasteboard.string;
         if ([pasted.lowercaseString hasPrefix:@"magnet:"]) {
             field.text = pasted;
         }
+#endif
     }];
 
     __weak VLCTorrentsViewController *weakSelf = self;
@@ -220,11 +239,13 @@ static NSTimeInterval const kRefreshInterval = 1.0;
                                             handler:^(UIAlertAction *action) {
         [weakSelf handleMagnet:alert.textFields.firstObject.text stream:YES];
     }]];
+#if !TARGET_OS_TV
     [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Download", nil)
                                               style:UIAlertActionStyleDefault
                                             handler:^(UIAlertAction *action) {
         [weakSelf handleMagnet:alert.textFields.firstObject.text stream:NO];
     }]];
+#endif
     [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", nil)
                                               style:UIAlertActionStyleCancel
                                             handler:nil]];
@@ -259,14 +280,68 @@ static NSTimeInterval const kRefreshInterval = 1.0;
     [self refresh];
 }
 
+#if TARGET_OS_TV
+/// Stands in for the swipe actions tvOS has no gesture for.
+- (void)presentActionsForTorrent:(VLCTorrentInfo *)info
+{
+    UIAlertController *sheet = [UIAlertController
+        alertControllerWithTitle:info.name
+                         message:info.statusDescription
+                  preferredStyle:UIAlertControllerStyleAlert];
+
+    __weak VLCTorrentsViewController *weakSelf = self;
+    VLCTorrentService *service = VLCTorrentService.sharedService;
+
+    if (info.hasMetadata) {
+        [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Choose a file", nil)
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(UIAlertAction *action) {
+            VLCTorrentFilesViewController *files =
+                [[VLCTorrentFilesViewController alloc] initWithInfoHash:info.infoHash
+                                                                  title:info.name];
+            [weakSelf.navigationController pushViewController:files animated:YES];
+        }]];
+    }
+
+    BOOL const isPaused = info.state == VLCTorrentStatePaused;
+    [sheet addAction:[UIAlertAction actionWithTitle:isPaused ? NSLocalizedString(@"Resume", nil)
+                                                             : NSLocalizedString(@"Pause", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        if (isPaused) {
+            [service resumeTorrentWithInfoHash:info.infoHash];
+        } else {
+            [service pauseTorrentWithInfoHash:info.infoHash];
+        }
+        [weakSelf refresh];
+    }]];
+
+    [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Remove", nil)
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(UIAlertAction *action) {
+        [service removeTorrentWithInfoHash:info.infoHash deletingFiles:YES];
+        [weakSelf refresh];
+    }]];
+    [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+#endif
+
 #pragma mark - Saved torrents
 
 - (void)openBookmark:(VLCTorrentBookmark *)bookmark
 {
+#if TARGET_OS_TV
+    UIAlertControllerStyle const style = UIAlertControllerStyleAlert;
+#else
+    UIAlertControllerStyle const style = UIAlertControllerStyleActionSheet;
+#endif
     UIAlertController *sheet = [UIAlertController
         alertControllerWithTitle:bookmark.name
                          message:nil
-                  preferredStyle:UIAlertControllerStyleActionSheet];
+                  preferredStyle:style];
 
     __weak VLCTorrentsViewController *weakSelf = self;
     [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Stream", nil)
@@ -275,17 +350,21 @@ static NSTimeInterval const kRefreshInterval = 1.0;
         [VLCTorrentLibrary.sharedLibrary markBookmarkOpened:bookmark];
         [weakSelf handleMagnet:bookmark.magnetURI stream:YES];
     }]];
+#if !TARGET_OS_TV
     [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Download", nil)
                                               style:UIAlertActionStyleDefault
                                             handler:^(UIAlertAction *action) {
         [VLCTorrentLibrary.sharedLibrary markBookmarkOpened:bookmark];
         [weakSelf handleMagnet:bookmark.magnetURI stream:NO];
     }]];
+#endif
     [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", nil)
                                               style:UIAlertActionStyleCancel
                                             handler:nil]];
 
+#if !TARGET_OS_TV
     sheet.popoverPresentationController.sourceView = self.tableView;
+#endif
     [self presentViewController:sheet animated:YES completion:nil];
 }
 
@@ -387,6 +466,11 @@ static NSTimeInterval const kRefreshInterval = 1.0;
     }
 
     VLCTorrentInfo *info = self.torrents[indexPath.row];
+#if TARGET_OS_TV
+    // No swipe actions on a remote, so selection has to offer them instead.
+    [self presentActionsForTorrent:info];
+    return;
+#endif
     if (!info.hasMetadata) {
         [self presentMessage:NSLocalizedString(@"Still fetching this torrent's file list.", nil)];
         return;
@@ -396,6 +480,7 @@ static NSTimeInterval const kRefreshInterval = 1.0;
     [self.navigationController pushViewController:files animated:YES];
 }
 
+#if !TARGET_OS_TV
 - (UISwipeActionsConfiguration *)tableView:(UITableView *)tableView
     trailingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath
 {
@@ -467,6 +552,7 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 
     return [UISwipeActionsConfiguration configurationWithActions:@[remove, toggle]];
 }
+#endif
 
 /// Deleting downloaded media is destructive and easy to do by accident on a
 /// swipe, so the files are only removed when explicitly chosen.
@@ -474,10 +560,15 @@ static NSTimeInterval const kRefreshInterval = 1.0;
                      completion:(void (^)(BOOL))completion
 {
     VLCTorrentService *service = VLCTorrentService.sharedService;
+#if TARGET_OS_TV
+    UIAlertControllerStyle const removeStyle = UIAlertControllerStyleAlert;
+#else
+    UIAlertControllerStyle const removeStyle = UIAlertControllerStyleActionSheet;
+#endif
     UIAlertController *sheet = [UIAlertController
         alertControllerWithTitle:info.name
                          message:NSLocalizedString(@"Remove this torrent?", nil)
-                  preferredStyle:UIAlertControllerStyleActionSheet];
+                  preferredStyle:removeStyle];
 
     __weak VLCTorrentsViewController *weakSelf = self;
     [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Remove and keep files", nil)
@@ -500,7 +591,9 @@ static NSTimeInterval const kRefreshInterval = 1.0;
         completion(NO);
     }]];
 
+#if !TARGET_OS_TV
     sheet.popoverPresentationController.sourceView = self.tableView;
+#endif
     [self presentViewController:sheet animated:YES completion:nil];
 }
 

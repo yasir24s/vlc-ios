@@ -39,3 +39,8 @@
 #import "VLCMovieTVCollectionViewCell.h"
 
 #import "NSString+SupportedMedia.h"
+
+#import "VLCTorrentService.h"
+#import "VLCTorrentHTTPServer.h"
+#import "VLCTorrentLibrary.h"
+#import "VLCTorrentPlaybackCoordinator.h"
