@@ -77,6 +77,7 @@ static NSString *const kOpenedKey = @"opened";
     if (self) {
         _bookmarks = [NSMutableArray array];
         [self load];
+        [self importFromSeedSources];
         // Magnets carry at best a dn= hint, so adopt the torrent's real name
         // as soon as metadata produces one.
         [[NSNotificationCenter defaultCenter] addObserver:self
@@ -96,8 +97,16 @@ static NSString *const kOpenedKey = @"opened";
 
 - (NSString *)storePath
 {
+#if TARGET_OS_TV
+    // Application Support is not writable on tvOS -- creating it fails and
+    // every save is silently lost. Caches is what the platform actually gives
+    // you, which is why VLC keeps its medialibrary there too.
+    NSString *support = NSSearchPathForDirectoriesInDomains(NSCachesDirectory,
+                                                            NSUserDomainMask, YES).firstObject;
+#else
     NSString *support = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory,
                                                             NSUserDomainMask, YES).firstObject;
+#endif
     NSString *directory = [support stringByAppendingPathComponent:@"Torrents"];
     [[NSFileManager defaultManager] createDirectoryAtPath:directory
                              withIntermediateDirectories:YES
@@ -237,6 +246,56 @@ static NSString *const kOpenedKey = @"opened";
         }
     }
     if (changed) {
+        [self save];
+    }
+}
+
+/// devicectl cannot reliably write into a tvOS app's real data container, so
+/// the list arrives by other means: a plist bundled at build time, and any
+/// file dropped into VLC's own Wi-Fi upload directory. Both are imported once
+/// and are no-ops when there is nothing new.
+- (void)importFromSeedSources
+{
+    NSUInteger added = 0;
+
+    NSString *bundled = [[NSBundle mainBundle] pathForResource:@"seed-magnets" ofType:@"plist"];
+    NSArray *seed = bundled ? [NSArray arrayWithContentsOfFile:bundled] : nil;
+    for (NSDictionary *entry in seed) {
+        if (![entry isKindOfClass:[NSDictionary class]]) {
+            continue;
+        }
+        NSString *magnet = entry[kMagnetKey];
+        if (![magnet isKindOfClass:[NSString class]] || [self bookmarkForMagnetURI:magnet]) {
+            continue;
+        }
+        VLCTorrentBookmark *bookmark = [self rememberMagnetURI:magnet];
+        NSString *name = entry[kNameKey];
+        if (bookmark && [name isKindOfClass:[NSString class]]) {
+            bookmark.name = name;
+        }
+        added++;
+    }
+
+    // Anything the user uploads through VLC's existing web interface.
+    NSString *caches = NSSearchPathForDirectoriesInDomains(NSCachesDirectory,
+                                                           NSUserDomainMask, YES).firstObject;
+    NSString *uploads = [caches stringByAppendingPathComponent:@"Upload"];
+    for (NSString *name in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:uploads error:nil]) {
+        NSString *extension = name.pathExtension.lowercaseString;
+        if (![extension isEqualToString:@"txt"] && ![extension isEqualToString:@"magnets"] &&
+            ![extension isEqualToString:@"plist"]) {
+            continue;
+        }
+        NSString *text = [NSString stringWithContentsOfFile:
+            [uploads stringByAppendingPathComponent:name]
+                                                   encoding:NSUTF8StringEncoding error:nil];
+        if (text) {
+            added += [self importFromText:text];
+        }
+    }
+
+    if (added > 0) {
+        NSLog(@"[VLCTorrentLibrary] seeded %lu magnet(s)", (unsigned long)added);
         [self save];
     }
 }

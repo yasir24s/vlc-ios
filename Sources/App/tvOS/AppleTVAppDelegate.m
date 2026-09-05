@@ -13,6 +13,7 @@
 #import "AppleTVAppDelegate.h"
 #import "VLCServerListTVViewController.h"
 #import "VLCOpenNetworkStreamTVViewController.h"
+#import "VLCTorrentsViewController.h"
 #import "VLCOpenManagedServersViewController.h"
 #import "VLCSettingsViewController.h"
 #import "VLCHTTPUploaderController.h"
@@ -28,6 +29,7 @@
     VLCServerListTVViewController *_localNetworkVC;
     VLCRemotePlaybackViewController *_remotePlaybackVC;
     VLCOpenNetworkStreamTVViewController *_openNetworkVC;
+    VLCTorrentsViewController *_torrentsVC;
     VLCOpenManagedServersViewController *_openManagedServersVC;
     VLCSettingsViewController *_settingsVC;
     PlaylistViewController *_playlistVC;
@@ -88,6 +90,7 @@
     _openManagedServersVC = [[VLCOpenManagedServersViewController alloc] initWithNibName:nil bundle:nil];
     _settingsVC = [[VLCSettingsViewController alloc] initWithNibName:nil bundle:nil];
     _playlistVC = [[PlaylistViewController alloc] init];
+    _torrentsVC = [[VLCTorrentsViewController alloc] init];
     _mainViewController = [[UITabBarController alloc] init];
     _mainViewController.tabBar.barTintColor = PresentationTheme.current.colors.orangeUI;
 
@@ -96,6 +99,7 @@
     [viewControllers addObject:[[UINavigationController alloc] initWithRootViewController:_remotePlaybackVC]];
     [viewControllers addObject:[[UINavigationController alloc] initWithRootViewController:_openNetworkVC]];
     [viewControllers addObject:[[UINavigationController alloc] initWithRootViewController:_playlistVC]];
+    [viewControllers addObject:[[UINavigationController alloc] initWithRootViewController:_torrentsVC]];
 
     if(_openManagedServersVC.hasManagedServers) {
         [viewControllers addObject:[[UINavigationController alloc] initWithRootViewController:_openManagedServersVC]];

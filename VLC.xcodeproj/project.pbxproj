@@ -61,9 +61,12 @@
 		2663ACB422497D47000FBB95 /* VLCNetworkLoginTVViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 2663ACB322497D47000FBB95 /* VLCNetworkLoginTVViewController.xib */; };
 		26F1BFD01A770408001DF30C /* libMediaVLC.xml in Resources */ = {isa = PBXBuildFile; fileRef = 26F1BFCF1A770408001DF30C /* libMediaVLC.xml */; };
 		271037E80004A616F1EC5EB5 /* PodcastsEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FA619B52F59E5EA3D9A48DA /* PodcastsEmptyStateView.swift */; };
+		277DF235E750D150F4335EB8 /* VLCTorrentService.mm in Sources */ = {isa = PBXBuildFile; fileRef = F2CDB9666A9013A104E1BFAB /* VLCTorrentService.mm */; };
 		29125E5617492219003F03E5 /* index.html in Resources */ = {isa = PBXBuildFile; fileRef = 29125E5417492219003F03E5 /* index.html */; };
 		2915544317490D4A00B86CAD /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2915544217490D4A00B86CAD /* Security.framework */; };
+		299DC63CA01A8D5F04758B61 /* VLCTorrentFilesViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = FD3EEAD34AA096C04409F3AA /* VLCTorrentFilesViewController.m */; };
 		29BED48E52559741394CAE9E /* PodcastProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA342D0C01512D2646834221 /* PodcastProgressBar.swift */; };
+		2CDEF27212A737B780122EC7 /* VLCTorrentHTTPServer.m in Sources */ = {isa = PBXBuildFile; fileRef = 6574DF2A17EF26C8A7FA5B6B /* VLCTorrentHTTPServer.m */; };
 		2D0954DF9338D5EC16CAE61D /* PodcastsOnAirBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE4A4D0AB4A647A29E01384 /* PodcastsOnAirBridge.swift */; };
 		2F4202D243FC63C7969F4291 /* PodcastShowDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 281D3E055E08E6B041594BB7 /* PodcastShowDetailViewController.swift */; };
 		2FB4B678625D8B07E45C7ECE /* PodcastSubscriptionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4048CFB0F054C0A7A6FAB1E9 /* PodcastSubscriptionModel.swift */; };
@@ -228,6 +231,7 @@
 		4AEF03CFE0C0B9517270CD51 /* PodcastSubscriptionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4048CFB0F054C0A7A6FAB1E9 /* PodcastSubscriptionModel.swift */; };
 		4D8578AE799AEA90B188C8F5 /* PodcastsEmptyStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FA619B52F59E5EA3D9A48DA /* PodcastsEmptyStateView.swift */; };
 		4F0E1A81C2696D36EB12CB6B /* ShowTileCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C2F86C79424A52ADE38DB5 /* ShowTileCell.swift */; };
+		506A3A84EDE130739A2FEC89 /* VLCTorrentPlaybackCoordinator.m in Sources */ = {isa = PBXBuildFile; fileRef = BDE1B1C0EDEC5AC2E151AE27 /* VLCTorrentPlaybackCoordinator.m */; };
 		511E417994AB967114D2BAE3 /* VLCDownloadStatusBanner.m in Sources */ = {isa = PBXBuildFile; fileRef = 7B814635952B041103B96B5A /* VLCDownloadStatusBanner.m */; };
 		558CFFC52C30D69500E47D8E /* PlaybackCacheHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 558CFFC42C30D69500E47D8E /* PlaybackCacheHelper.swift */; };
 		55E0BA65D4F985E4E5E5299D /* ContinueListeningCarouselCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B55E7A769F0FA52EDC5ACE1D /* ContinueListeningCarouselCell.swift */; };
@@ -408,7 +412,6 @@
 		7D310885245F1EE100BC6D79 /* VLCMediaFileDownloader.m in Sources */ = {isa = PBXBuildFile; fileRef = 7D310884245F1EE100BC6D79 /* VLCMediaFileDownloader.m */; };
 		7D3150A92AA8B8B90068D478 /* UIImage+AverageColor.m in Sources */ = {isa = PBXBuildFile; fileRef = 7D3150A82AA8B8B90068D478 /* UIImage+AverageColor.m */; };
 		7D339B3E2FED775C00D7E95A /* TVServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7D339B3D2FED775C00D7E95A /* TVServices.framework */; };
-		7D339B462FED775C00D7E95A /* TopShelf.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7D339B3C2FED775C00D7E95A /* TopShelf.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		7D339B582FED786900D7E95A /* VLCTopShelfManager.m in Sources */ = {isa = PBXBuildFile; fileRef = 7D339B542FED786900D7E95A /* VLCTopShelfManager.m */; };
 		7D339B5A2FED78CC00D7E95A /* VLCTopShelfContentProvider.m in Sources */ = {isa = PBXBuildFile; fileRef = 7D339B522FED786900D7E95A /* VLCTopShelfContentProvider.m */; };
 		7D37196428F1F0B800C5A9F2 /* VLCAppSceneDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 7D37196328F1F0B800C5A9F2 /* VLCAppSceneDelegate.m */; };
@@ -1385,6 +1388,7 @@
 		91D33C7325E6B6E700CC49BE /* PlayerInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91D33C7225E6B6E700CC49BE /* PlayerInfoView.swift */; };
 		9524E4737C0C5E179DEA2539 /* GTLRDrive_File+VLCShortcut.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B5C4CB8C0C2D9862FB5E36A /* GTLRDrive_File+VLCShortcut.m */; };
 		99AE8BE9D9B3C250C1C559C3 /* VLCTransferStatusBannerController.m in Sources */ = {isa = PBXBuildFile; fileRef = 7B996FC4922C6AC260C4683F /* VLCTransferStatusBannerController.m */; };
+		99F5536DF71730CC5D3BE697 /* VLCTorrentsViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = FF4ADD6F76957E7F788646B0 /* VLCTorrentsViewController.m */; };
 		9A761A7A538E67D66B525E17 /* VLCDonationNavigationController.m in Sources */ = {isa = PBXBuildFile; fileRef = 79E548ED7D128C819BE60358 /* VLCDonationNavigationController.m */; };
 		9B9231C4185A703700F89498 /* VLCNetworkLoginViewController.xib in Resources */ = {isa = PBXBuildFile; fileRef = 9B9231C3185A703700F89498 /* VLCNetworkLoginViewController.xib */; };
 		9BADAF45185FBD9D00108BD8 /* VLCFrostedGlasView.m in Sources */ = {isa = PBXBuildFile; fileRef = 9BADAF44185FBD9D00108BD8 /* VLCFrostedGlasView.m */; };
@@ -1397,8 +1401,10 @@
 		A1CA2EF628240BA0000DB82F /* VLCOpenManagedServersViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = A1CA2EF528240BA0000DB82F /* VLCOpenManagedServersViewController.m */; };
 		A77CC807F4B239D93F4F205F /* ContinueListeningSectionCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6156983777DD2563597369F8 /* ContinueListeningSectionCell.swift */; };
 		A79246C8170F11DF0036AAF2 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = A79246C6170F11DF0036AAF2 /* Localizable.strings */; };
+		A915B629AD76A93EE6B53ADC /* seed-magnets.plist in Resources */ = {isa = PBXBuildFile; fileRef = F08C7F5B47DDE98E4183AD9D /* seed-magnets.plist */; };
 		AB55D6531B36F36C8871D96D /* PodcastShowDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 281D3E055E08E6B041594BB7 /* PodcastShowDetailViewController.swift */; };
 		AD7E4C938BA345199B5386E2 /* VLCDownloadStatusBanner.m in Sources */ = {isa = PBXBuildFile; fileRef = 7B814635952B041103B96B5A /* VLCDownloadStatusBanner.m */; };
+		B0168D32FBDD8938F1D2B46E /* VLCTorrentLibrary.m in Sources */ = {isa = PBXBuildFile; fileRef = D0A78571E21F3B6E6A0C51FD /* VLCTorrentLibrary.m */; };
 		B1FD686BB90E25A76E8ABE3B /* PodcastShowHeaderCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FE07279E4864DC0BE2422FB /* PodcastShowHeaderCell.swift */; };
 		B21F024D327A32BA5F2BF59F /* PodcastsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EBF8DA0B16136EBFED6F35B /* PodcastsViewController.swift */; };
 		B8AD2615D8862BF269580C2A /* VLCDonationNavigationController.m in Sources */ = {isa = PBXBuildFile; fileRef = 79E548ED7D128C819BE60358 /* VLCDonationNavigationController.m */; };
@@ -1596,13 +1602,6 @@
 			remoteGlobalIDString = 7D94FCDA16DE7D1000F2623B;
 			remoteInfo = "VLC-iOS";
 		};
-		7D339B442FED775C00D7E95A /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 7D94FCD316DE7D1000F2623B /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 7D339B3B2FED775C00D7E95A;
-			remoteInfo = TopShelf;
-		};
 		7DCFE6883017FFD600803FD0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 7D94FCD316DE7D1000F2623B /* Project object */;
@@ -1640,7 +1639,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				7D339B462FED775C00D7E95A /* TopShelf.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2658,6 +2656,7 @@
 		E0F8980322D399E10061DB2F /* MediaScrubProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaScrubProgressBar.swift; sourceTree = "<group>"; };
 		E902177044EBF3EC167EA5FB /* libPods-VLC-iOSTests.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-VLC-iOSTests.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		EA342D0C01512D2646834221 /* PodcastProgressBar.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PodcastProgressBar.swift; sourceTree = "<group>"; };
+		F08C7F5B47DDE98E4183AD9D /* seed-magnets.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = "seed-magnets.plist"; sourceTree = "<group>"; };
 		F12A899BBBA3C176FEE8A0EE /* VLCTorrentsViewController.h */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.h; name = VLCTorrentsViewController.h; path = Sources/Torrent/VLCTorrentsViewController.h; sourceTree = "<group>"; };
 		F2CDB9666A9013A104E1BFAB /* VLCTorrentService.mm */ = {isa = PBXFileReference; includeInIndex = 1; name = VLCTorrentService.mm; path = Sources/Torrent/VLCTorrentService.mm; sourceTree = "<group>"; };
 		FC92C75B005E5C53A433A59C /* Pods-VLC-iOSTests.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-VLC-iOSTests.release.xcconfig"; path = "Target Support Files/Pods-VLC-iOSTests/Pods-VLC-iOSTests.release.xcconfig"; sourceTree = "<group>"; };
@@ -4533,6 +4532,7 @@
 				7D2D7FD21BD2F109002D6B6D /* VLC.entitlements */,
 				7D13294E1BA1F10100BE647E /* Images.xcassets */,
 				7DEC8BE81BD68BC9006E1093 /* Settings.bundle */,
+				F08C7F5B47DDE98E4183AD9D /* seed-magnets.plist */,
 			);
 			path = tvOS;
 			sourceTree = "<group>";
@@ -4951,7 +4951,6 @@
 			buildRules = (
 			);
 			dependencies = (
-				7D339B452FED775C00D7E95A /* PBXTargetDependency */,
 			);
 			name = "VLC-tvOS";
 			productName = "VLC for Apple TV";
@@ -5318,6 +5317,7 @@
 				7D0C207628C897DA00CCFFEF /* About Contents.html in Resources */,
 				7D405EE21BEA1FAD006ED886 /* index.html in Resources */,
 				2227B4E42A8BD2CD00D2BE26 /* PlaylistMediaViewController.xib in Resources */,
+				A915B629AD76A93EE6B53ADC /* seed-magnets.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -5955,6 +5955,12 @@
 				7DC869E028CB86C100EE99F8 /* VLCLocalNetworkServiceBrowserNFS.m in Sources */,
 				3C319440CEBA3CD632A73003 /* VLCPlayerInlineMenuViewController.m in Sources */,
 				E04DAE7C50E8F5F9BD0F5949 /* VLCPlayerControlsBar.m in Sources */,
+				277DF235E750D150F4335EB8 /* VLCTorrentService.mm in Sources */,
+				2CDEF27212A737B780122EC7 /* VLCTorrentHTTPServer.m in Sources */,
+				B0168D32FBDD8938F1D2B46E /* VLCTorrentLibrary.m in Sources */,
+				506A3A84EDE130739A2FEC89 /* VLCTorrentPlaybackCoordinator.m in Sources */,
+				99F5536DF71730CC5D3BE697 /* VLCTorrentsViewController.m in Sources */,
+				299DC63CA01A8D5F04758B61 /* VLCTorrentFilesViewController.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -7124,11 +7130,6 @@
 			target = 7D94FCDA16DE7D1000F2623B /* VLC-iOS */;
 			targetProxy = 41B0BC8B1F73ED7D0063BA26 /* PBXContainerItemProxy */;
 		};
-		7D339B452FED775C00D7E95A /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 7D339B3B2FED775C00D7E95A /* TopShelf */;
-			targetProxy = 7D339B442FED775C00D7E95A /* PBXContainerItemProxy */;
-		};
 		7DCFE6893017FFD600803FD0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 7DCFE6733017FE7500803FD0 /* VLC-ShareExtension */;
@@ -7736,6 +7737,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
@@ -7745,19 +7748,34 @@
 				CODE_SIGN_ENTITLEMENTS = Resources/tvOS/VLC.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=appletvos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 727;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 75GAHG3SZQ;
+				DEVELOPMENT_TEAM = 7J53W37H95;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Sources/Headers/VLC-tvOS-Prefix-Header.pch";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					BOOST_ASIO_ENABLE_CANCELIO,
+					BOOST_ASIO_NO_DEPRECATED,
+					BOOST_SYSTEM_USE_UTF8,
+					_SILENCE_CXX17_ALLOCATOR_VOID_DEPRECATION_WARNING,
+					"TORRENT_ABI_VERSION=100",
+					"TORRENT_USE_RTC=0",
+				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Users/yasir24s/libtorrent-ios/Thirdparty/libtorrent/include",
+					/opt/homebrew/include,
+				);
 				INFOPLIST_FILE = "$(SRCROOT)/Resources/tvOS/Info.plist";
 				KEYCHAIN_ACCESS_GROUP = "$(AppIdentifierPrefix)$(BUNDLE_IDENTIFIER_PREFIX).vlc-tvos";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -7766,7 +7784,13 @@
 				);
 				MARKETING_VERSION = 4.0.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER_PREFIX}.vlc-ios";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"/Users/yasir24s/libtorrent-ios/build-tvos/libtorrent-rasterbar.a",
+					"-framework",
+					SystemConfiguration,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.goodnotes;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				SDKROOT = appletvos;
@@ -7783,6 +7807,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
@@ -7792,20 +7818,35 @@
 				CODE_SIGN_ENTITLEMENTS = Resources/tvOS/VLC.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=appletvos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 727;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 75GAHG3SZQ;
+				DEVELOPMENT_TEAM = 7J53W37H95;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Sources/Headers/VLC-tvOS-Prefix-Header.pch";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					BOOST_ASIO_ENABLE_CANCELIO,
+					BOOST_ASIO_NO_DEPRECATED,
+					BOOST_SYSTEM_USE_UTF8,
+					_SILENCE_CXX17_ALLOCATOR_VOID_DEPRECATION_WARNING,
+					"TORRENT_ABI_VERSION=100",
+					"TORRENT_USE_RTC=0",
+				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Users/yasir24s/libtorrent-ios/Thirdparty/libtorrent/include",
+					/opt/homebrew/include,
+				);
 				INFOPLIST_FILE = "$(SRCROOT)/Resources/tvOS/Info.plist";
 				KEYCHAIN_ACCESS_GROUP = "$(AppIdentifierPrefix)$(BUNDLE_IDENTIFIER_PREFIX).vlc-tvos";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -7814,7 +7855,13 @@
 				);
 				MARKETING_VERSION = 4.0.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
-				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER_PREFIX}.vlc-ios";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"/Users/yasir24s/libtorrent-ios/build-tvos/libtorrent-rasterbar.a",
+					"-framework",
+					SystemConfiguration,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.goodnotes;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				SDKROOT = appletvos;
@@ -7830,6 +7877,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = LaunchImage;
+				CLANG_CXX_LANGUAGE_STANDARD = "c++17";
+				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
@@ -7839,20 +7888,35 @@
 				CODE_SIGN_ENTITLEMENTS = Resources/tvOS/VLC.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				"CODE_SIGN_IDENTITY[sdk=appletvos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 727;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 75GAHG3SZQ;
+				DEVELOPMENT_TEAM = 7J53W37H95;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Sources/Headers/VLC-tvOS-Prefix-Header.pch";
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					BOOST_ASIO_ENABLE_CANCELIO,
+					BOOST_ASIO_NO_DEPRECATED,
+					BOOST_SYSTEM_USE_UTF8,
+					_SILENCE_CXX17_ALLOCATOR_VOID_DEPRECATION_WARNING,
+					"TORRENT_ABI_VERSION=100",
+					"TORRENT_USE_RTC=0",
+				);
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNDECLARED_SELECTOR = YES;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"/Users/yasir24s/libtorrent-ios/Thirdparty/libtorrent/include",
+					/opt/homebrew/include,
+				);
 				INFOPLIST_FILE = "$(SRCROOT)/Resources/tvOS/Info.plist";
 				KEYCHAIN_ACCESS_GROUP = "$(AppIdentifierPrefix)$(BUNDLE_IDENTIFIER_PREFIX).vlc-tvos";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -7861,7 +7925,13 @@
 				);
 				MARKETING_VERSION = 4.0.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
-				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER_PREFIX}.vlc-ios";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"/Users/yasir24s/libtorrent-ios/build-tvos/libtorrent-rasterbar.a",
+					"-framework",
+					SystemConfiguration,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.goodnotes;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				SDKROOT = appletvos;

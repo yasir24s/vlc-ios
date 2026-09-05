@@ -221,9 +221,17 @@ BOOL IsPlayableExtension(NSString *name)
 
 - (NSString *)downloadDirectory
 {
-    NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
-                                                              NSUserDomainMask, YES).firstObject;
-    return [documents stringByAppendingPathComponent:@"Torrents"];
+#if TARGET_OS_TV
+    // tvOS guarantees no persistent local storage, which is why VLC roots its
+    // medialibrary in Caches there too. Nothing kept here is truly permanent:
+    // the system may purge it whenever it wants the space back.
+    NSString *root = NSSearchPathForDirectoriesInDomains(NSCachesDirectory,
+                                                         NSUserDomainMask, YES).firstObject;
+#else
+    NSString *root = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory,
+                                                         NSUserDomainMask, YES).firstObject;
+#endif
+    return [root stringByAppendingPathComponent:@"Torrents"];
 }
 
 - (NSString *)streamCacheDirectory
@@ -235,8 +243,13 @@ BOOL IsPlayableExtension(NSString *name)
 
 - (NSString *)resumeDirectory
 {
+#if TARGET_OS_TV
+    NSString *support = NSSearchPathForDirectoriesInDomains(NSCachesDirectory,
+                                                            NSUserDomainMask, YES).firstObject;
+#else
     NSString *support = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory,
                                                             NSUserDomainMask, YES).firstObject;
+#endif
     return [support stringByAppendingPathComponent:@"Torrents"];
 }
 
@@ -434,6 +447,12 @@ BOOL IsPlayableExtension(NSString *name)
 
     if (auto *saved = lt::alert_cast<lt::save_resume_data_alert>(alert)) {
         [self writeResumeData:saved->params];
+        return;
+    }
+
+    if (auto *fileError = lt::alert_cast<lt::file_error_alert>(alert)) {
+        NSLog(@"[VLCTorrent] FILE ERROR %s: %s",
+              fileError->filename(), fileError->error.message().c_str());
         return;
     }
 

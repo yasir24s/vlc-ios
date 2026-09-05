@@ -34,9 +34,18 @@
 {
     [super viewDidLoad];
 
+#if TARGET_OS_TV
+    // tvOS has no systemBackgroundColor; the platform supplies the backdrop.
+    self.view.backgroundColor = UIColor.clearColor;
+#else
     self.view.backgroundColor = UIColor.systemBackgroundColor;
+#endif
 
+#if TARGET_OS_TV
+    self.tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStyleGrouped];
+#else
     self.tableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStyleInsetGrouped];
+#endif
     self.tableView.translatesAutoresizingMaskIntoConstraints = NO;
     self.tableView.dataSource = self;
     self.tableView.delegate = self;
@@ -97,9 +106,15 @@
     // Whether everything is being fetched depends on how the torrent was
     // added -- Download wants the lot, Stream only what you open -- so say
     // what is actually happening rather than promising one of the two.
+#if TARGET_OS_TV
+    return NSLocalizedString(@"Nothing downloads until you pick it, and tvOS "
+                             @"keeps nothing permanently \u2014 pick an episode "
+                             @"to stream it.", nil);
+#else
     return NSLocalizedString(@"Nothing downloads until you pick it. A streamed "
                              @"episode is deleted when you open another one; "
                              @"\u201ckeep\u201d saves it to your VLC library.", nil);
+#endif
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
@@ -178,10 +193,15 @@
 /// torrent, so one episode can be playing while another is being kept.
 - (void)presentChoicesForFile:(VLCTorrentFile *)file fromCell:(nullable UITableViewCell *)cell
 {
+#if TARGET_OS_TV
+    UIAlertControllerStyle const style = UIAlertControllerStyleAlert;
+#else
+    UIAlertControllerStyle const style = UIAlertControllerStyleActionSheet;
+#endif
     UIAlertController *sheet = [UIAlertController
         alertControllerWithTitle:file.name
                          message:[self.byteFormatter stringFromByteCount:file.size]
-                  preferredStyle:UIAlertControllerStyleActionSheet];
+                  preferredStyle:style];
 
     __weak VLCTorrentFilesViewController *weakSelf = self;
     if (file.isPlayable) {
@@ -192,6 +212,9 @@
         }]];
     }
 
+#if !TARGET_OS_TV
+    // Deliberately absent on tvOS: there is no persistent local storage to keep
+    // anything in, so offering it would be a promise the platform cannot honour.
     [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Download and keep", nil)
                                               style:UIAlertActionStyleDefault
                                             handler:^(UIAlertAction *action) {
@@ -202,13 +225,16 @@
             [weakSelf dismissChooser];
         }
     }]];
+#endif
 
     [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", nil)
                                               style:UIAlertActionStyleCancel
                                             handler:nil]];
 
+#if !TARGET_OS_TV
     sheet.popoverPresentationController.sourceView = cell ?: self.view;
     sheet.popoverPresentationController.sourceRect = (cell ?: self.view).bounds;
+#endif
     [self presentViewController:sheet animated:YES completion:nil];
 }
 

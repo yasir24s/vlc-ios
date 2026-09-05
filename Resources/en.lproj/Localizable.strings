@@ -941,3 +941,7 @@
 "%@ - kept" = "%@ - kept";
 "%@ - streaming, not kept" = "%@ - streaming, not kept";
 "Nothing downloads until you pick it. A streamed episode is deleted when you open another one; “keep” saves it to your VLC library." = "Nothing downloads until you pick it. A streamed episode is deleted when you open another one; “keep” saves it to your VLC library.";
+
+/* New strings */
+"Choose a file" = "Choose a file";
+"Nothing downloads until you pick it, and tvOS keeps nothing permanently — pick an episode to stream it." = "Nothing downloads until you pick it, and tvOS keeps nothing permanently — pick an episode to stream it.";
