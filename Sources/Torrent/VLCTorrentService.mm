@@ -59,10 +59,13 @@ std::string HashKey(lt::info_hash_t const &hashes)
 struct Record {
     lt::torrent_handle handle;
     VLCTorrentMode mode = VLCTorrentModeDownload;
-    /// Files the user explicitly asked to keep. Stream-mode prioritisation
-    /// zeroes everything it is not currently reading, which would otherwise
-    /// silently cancel a download the user started on another file.
+    /// Files the user asked to keep. Never evicted.
     std::set<int> keptFiles;
+    /// The file currently being streamed, which is transient.
+    int streamingFile = -1;
+    /// Files whose data we deleted from under libtorrent. Its have-state is
+    /// stale for these until a recheck, so re-opening one must force it.
+    std::set<int> evictedFiles;
 };
 
 NSString *ToNSString(std::string const &s)
@@ -179,6 +182,8 @@ BOOL IsPlayableExtension(NSString *name)
     BOOL _pausedForCellular;
     NSString *_boundInterface;
     dispatch_semaphore_t _firstPathUpdate;
+    BOOL _pausedForDiskSpace;
+    dispatch_source_t _diskTimer;
 }
 
 + (VLCTorrentService *)sharedService
@@ -235,9 +240,12 @@ BOOL IsPlayableExtension(NSString *name)
     return [support stringByAppendingPathComponent:@"Torrents"];
 }
 
+/// One location for everything. Streaming used to save into a purgeable cache
+/// and get promoted on keep, but with nothing fetched until it is picked there
+/// is no longer a meaningful difference between the two.
 - (NSString *)savePathForMode:(VLCTorrentMode)mode
 {
-    return mode == VLCTorrentModeStream ? self.streamCacheDirectory : self.downloadDirectory;
+    return self.downloadDirectory;
 }
 
 /// Mode is recovered on relaunch from which directory the data sits in, so it
@@ -325,6 +333,7 @@ BOOL IsPlayableExtension(NSString *name)
     });
 
     [self startAlertLoop];
+    [self startDiskMonitor];
     [self loadPersistedTorrents];
 }
 
@@ -402,13 +411,11 @@ BOOL IsPlayableExtension(NSString *name)
     }
 
     if (auto *metadata = lt::alert_cast<lt::metadata_received_alert>(alert)) {
-        // A magnet has become a real torrent: the file list is now available.
+        // A magnet has become a real torrent, so the file list finally exists.
+        // Want none of it: adding a season pack should cost nothing until the
+        // user picks something out of it.
         if (metadata->handle.is_valid()) {
-            lt::torrent_status const status = metadata->handle.status();
-            std::string const key = HashKey(status.info_hashes);
-            if ([self modeForSavePath:status.save_path] == VLCTorrentModeDownload) {
-                [self prioritisePlaybackOrderForTorrentWithInfoHash:ToNSString(key)];
-            }
+            [self wantNothingByDefault:metadata->handle];
         }
         [self postListDidChange];
         return;
@@ -803,6 +810,7 @@ BOOL IsPlayableExtension(NSString *name)
 
         VLCTorrentMode mode = [self modeForSavePath:params.save_path];
         std::string key = HashKey(params.info_hashes);
+        __block lt::torrent_handle restored;
         dispatch_sync(_queue, ^{
             if (!_session || _torrents.find(key) != _torrents.end()) {
                 return;
@@ -815,8 +823,19 @@ BOOL IsPlayableExtension(NSString *name)
             Record record;
             record.handle = handle;
             record.mode = mode;
+            [self loadKeptFilesForInfoHash:key into:record];
             _torrents[key] = record;
+            restored = handle;
         });
+
+        // A torrent restored from resume data already has its metadata, so it
+        // never emits metadata_received_alert and would keep fetching whatever
+        // it was fetching under the old rules. Apply the new default -- want
+        // nothing but what was kept -- outside the queue, since
+        // -wantNothingByDefault: takes it itself.
+        if (restored.is_valid()) {
+            [self wantNothingByDefault:restored];
+        }
     }
     [self postListDidChange];
 }
@@ -996,60 +1015,233 @@ BOOL IsPlayableExtension(NSString *name)
     [self postListDidChange];
 }
 
-- (void)keepFileIndex:(NSInteger)fileIndex inTorrentWithInfoHash:(NSString *)infoHash
+/// Runs on _queue. Everything starts unwanted; the user's picks are restored
+/// from the kept set so a relaunch does not undo them.
+- (void)wantNothingByDefault:(lt::torrent_handle const &)handle
 {
-    NSString *destination = self.downloadDirectory;
-    [self ensureDirectory:destination];
+    if (!handle.is_valid()) {
+        return;
+    }
+    std::shared_ptr<const lt::torrent_info> info = handle.torrent_file();
+    if (!info) {
+        return;
+    }
 
-    std::string const key = infoHash.UTF8String;
+    std::string const key = HashKey(handle.status().info_hashes);
+    __block std::set<int> kept;
     dispatch_sync(_queue, ^{
         auto found = _torrents.find(key);
+        if (found != _torrents.end()) {
+            kept = found->second.keptFiles;
+        }
+    });
+
+    int const fileCount = info->layout().num_files();
+    std::vector<lt::download_priority_t> priorities;
+    priorities.reserve(static_cast<size_t>(fileCount));
+    for (int index = 0; index < fileCount; index++) {
+        priorities.push_back(kept.count(index) > 0 ? lt::default_priority
+                                                   : lt::dont_download);
+    }
+    handle.prioritize_files(priorities);
+}
+
+- (void)streamFileIndex:(NSInteger)fileIndex inTorrentWithInfoHash:(NSString *)infoHash
+{
+    int const index = static_cast<int>(fileIndex);
+    __block NSString *evictPath;
+    __block BOOL needsRecheck = NO;
+
+    dispatch_sync(_queue, ^{
+        auto found = _torrents.find(std::string(infoHash.UTF8String));
         if (found == _torrents.end() || !found->second.handle.is_valid()) {
             return;
         }
-        lt::torrent_handle const &handle = found->second.handle;
-        found->second.keptFiles.insert(static_cast<int>(fileIndex));
+        Record &record = found->second;
+        lt::torrent_handle const &handle = record.handle;
 
-        if (found->second.mode == VLCTorrentModeStream) {
-            // Streamed data sits in Library/Caches, which iOS may purge and the
-            // medialibrary never scans. Moving the storage keeps whatever has
-            // already been fetched instead of starting the download again.
-            handle.move_storage(destination.fileSystemRepresentation,
-                                lt::move_flags_t::always_replace_files);
-            handle.unset_flags(lt::torrent_flags::sequential_download);
-            found->second.mode = VLCTorrentModeDownload;
-            NSLog(@"VLCTorrentService: promoted %@ to a kept download", infoHash);
+        // Moving on from a transient file discards it. Kept files are exempt,
+        // and so is the file being opened.
+        int const previous = record.streamingFile;
+        if (previous >= 0 && previous != index &&
+            record.keptFiles.count(previous) == 0) {
+            handle.file_priority(lt::file_index_t{previous}, lt::dont_download);
+            evictPath = [self pathForFileIndex:previous handle:handle];
+            record.evictedFiles.insert(previous);
         }
 
-        // Only ever raise: lowering here would cancel whatever else is running.
-        handle.file_priority(lt::file_index_t{static_cast<int>(fileIndex)},
-                             lt::top_priority);
+        // libtorrent still believes it holds pieces we deleted, so it would
+        // never re-fetch them. A recheck is the only way to correct that, and
+        // it is only paid when the user actually returns to an evicted file.
+        if (record.evictedFiles.erase(index) > 0) {
+            needsRecheck = YES;
+        }
+
+        record.streamingFile = index;
+        handle.file_priority(lt::file_index_t{index}, lt::top_priority);
+        handle.set_flags(lt::torrent_flags::sequential_download);
+    });
+
+    if (evictPath) {
+        NSError *error;
+        if ([[NSFileManager defaultManager] removeItemAtPath:evictPath error:&error]) {
+            NSLog(@"VLCTorrentService: evicted %@", evictPath.lastPathComponent);
+        } else if (error.code != NSFileNoSuchFileError) {
+            NSLog(@"VLCTorrentService: could not evict %@: %@", evictPath, error);
+        }
+    }
+
+    if (needsRecheck) {
+        NSLog(@"VLCTorrentService: rechecking, file %d was evicted earlier", index);
+        [self withHandleForInfoHash:infoHash block:^(lt::torrent_handle const &handle) {
+            handle.force_recheck();
+        }];
+    }
+    [self postListDidChange];
+}
+
+/// Runs on _queue with the handle already in hand.
+- (nullable NSString *)pathForFileIndex:(int)fileIndex handle:(lt::torrent_handle const &)handle
+{
+    std::shared_ptr<const lt::torrent_info> info = handle.torrent_file();
+    if (!info) {
+        return nil;
+    }
+    lt::file_storage const &storage = info->layout();
+    if (fileIndex < 0 || fileIndex >= storage.num_files()) {
+        return nil;
+    }
+    NSString *root = ToNSString(handle.status().save_path);
+    NSString *relative = ToNSString(storage.file_path(lt::file_index_t{fileIndex}));
+    return [root stringByAppendingPathComponent:relative];
+}
+
+- (void)keepFileIndex:(NSInteger)fileIndex inTorrentWithInfoHash:(NSString *)infoHash
+{
+    int const index = static_cast<int>(fileIndex);
+    dispatch_sync(_queue, ^{
+        auto found = _torrents.find(std::string(infoHash.UTF8String));
+        if (found == _torrents.end() || !found->second.handle.is_valid()) {
+            return;
+        }
+        found->second.keptFiles.insert(index);
+        found->second.evictedFiles.erase(index);
+        // Only ever raise: keeping something must not cancel what is playing.
+        found->second.handle.file_priority(lt::file_index_t{index}, lt::top_priority);
+    });
+    [self persistKeptFiles];
+    [self postListDidChange];
+}
+
+- (BOOL)isFileKept:(NSInteger)fileIndex inTorrentWithInfoHash:(NSString *)infoHash
+{
+    __block BOOL kept = NO;
+    dispatch_sync(_queue, ^{
+        auto found = _torrents.find(std::string(infoHash.UTF8String));
+        kept = found != _torrents.end() &&
+               found->second.keptFiles.count(static_cast<int>(fileIndex)) > 0;
+    });
+    return kept;
+}
+
+- (BOOL)isFileStreaming:(NSInteger)fileIndex inTorrentWithInfoHash:(NSString *)infoHash
+{
+    __block BOOL streaming = NO;
+    dispatch_sync(_queue, ^{
+        auto found = _torrents.find(std::string(infoHash.UTF8String));
+        streaming = found != _torrents.end() &&
+                    found->second.streamingFile == static_cast<int>(fileIndex);
+    });
+    return streaming;
+}
+
+#pragma mark - Disk space
+
+- (int64_t)freeDiskBytes
+{
+    NSDictionary *attributes = [[NSFileManager defaultManager]
+        attributesOfFileSystemForPath:self.downloadDirectory error:nil];
+    return [attributes[NSFileSystemFreeSize] longLongValue];
+}
+
+- (BOOL)pausedForDiskSpace
+{
+    return _pausedForDiskSpace;
+}
+
+/// The add-time free-space check said nothing about what happens over the next
+/// twelve gigabytes, so watch it as data lands.
+- (void)enforceDiskSpaceLimit
+{
+    BOOL const low = self.freeDiskBytes < self.minimumFreeBytes;
+    if (low == _pausedForDiskSpace) {
+        return;
+    }
+    _pausedForDiskSpace = low;
+
+    dispatch_sync(_queue, ^{
+        if (!_session) {
+            return;
+        }
+        if (low) {
+            NSLog(@"VLCTorrentService: pausing, only %lld bytes free", self.freeDiskBytes);
+            _session->pause();
+        } else if (!_pausedForCellular) {
+            _session->resume();
+        }
     });
     [self postListDidChange];
 }
 
-- (void)prioritisePlaybackOrderForTorrentWithInfoHash:(NSString *)infoHash
+- (void)startDiskMonitor
 {
-    NSArray<VLCTorrentFile *> *ordered =
-        [self playableFilesInPlaybackOrderForTorrentWithInfoHash:infoHash];
-    if (ordered.count < 2) {
+    if (_diskTimer) {
         return;
     }
+    _diskTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0,
+                                        dispatch_get_global_queue(QOS_CLASS_UTILITY, 0));
+    dispatch_source_set_timer(_diskTimer, dispatch_time(DISPATCH_TIME_NOW, 0),
+                              5 * NSEC_PER_SEC, NSEC_PER_SEC);
+    __weak VLCTorrentService *weakSelf = self;
+    dispatch_source_set_event_handler(_diskTimer, ^{
+        [weakSelf enforceDiskSpaceLimit];
+    });
+    dispatch_resume(_diskTimer);
+}
 
-    [self withHandleForInfoHash:infoHash block:^(lt::torrent_handle const &handle) {
-        // Descending priority down the running order, floored at the default so
-        // later episodes still make progress rather than stalling completely.
-        int priority = 7;
-        for (VLCTorrentFile *file in ordered) {
-            handle.file_priority(lt::file_index_t{static_cast<int>(file.index)},
-                                 lt::download_priority_t{static_cast<uint8_t>(priority)});
-            if (priority > 4) {
-                priority--;
+#pragma mark - Kept-file persistence
+
+- (NSString *)keptFilesPath
+{
+    return [self.resumeDirectory stringByAppendingPathComponent:@"kept.plist"];
+}
+
+/// Resume data does not carry our notion of "kept", so it rides alongside.
+- (void)persistKeptFiles
+{
+    NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *plist = [NSMutableDictionary dictionary];
+    dispatch_sync(_queue, ^{
+        for (auto const &entry : _torrents) {
+            if (entry.second.keptFiles.empty()) {
+                continue;
             }
+            NSMutableArray<NSNumber *> *indexes = [NSMutableArray array];
+            for (int index : entry.second.keptFiles) {
+                [indexes addObject:@(index)];
+            }
+            plist[ToNSString(entry.first)] = indexes;
         }
-    }];
-    NSLog(@"VLCTorrentService: prioritised %lu files in playback order",
-          (unsigned long)ordered.count);
+    });
+    [plist writeToFile:[self keptFilesPath] atomically:YES];
+}
+
+- (void)loadKeptFilesForInfoHash:(std::string const &)key into:(Record &)record
+{
+    NSDictionary *plist = [NSDictionary dictionaryWithContentsOfFile:[self keptFilesPath]];
+    NSArray<NSNumber *> *indexes = plist[ToNSString(key)];
+    for (NSNumber *index in indexes) {
+        record.keptFiles.insert(index.intValue);
+    }
 }
 
 - (void)setWantedFileIndexes:(nullable NSArray<NSNumber *> *)indexes
@@ -1261,24 +1453,8 @@ BOOL IsPlayableExtension(NSString *name)
             return;
         }
 
-        // A streaming torrent fetches nothing but the file being played.
-        if (found->second.mode == VLCTorrentModeStream) {
-            handle.set_flags(lt::torrent_flags::sequential_download);
-            int const fileCount = storage.num_files();
-            std::set<int> const &kept = found->second.keptFiles;
-            std::vector<lt::download_priority_t> priorities;
-            priorities.reserve(static_cast<size_t>(fileCount));
-            for (int index = 0; index < fileCount; index++) {
-                if (index == static_cast<int>(fileIndex)) {
-                    priorities.push_back(lt::top_priority);
-                } else if (kept.count(index) > 0) {
-                    priorities.push_back(lt::default_priority);
-                } else {
-                    priorities.push_back(lt::dont_download);
-                }
-            }
-            handle.prioritize_files(priorities);
-        }
+        // Priorities belong to -streamFileIndex: and -keepFileIndex: now. This
+        // only ever nudges the read window forward, so it cannot undo a pick.
 
         int64_t const wanted = std::min(length, fileSize - fileOffset);
         lt::peer_request const first = info->map_file(file, fileOffset, 0);

@@ -934,7 +934,10 @@
 "Stream now" = "Stream now";
 
 /* New strings */
-"%@ - fetching" = "%@ - fetching";
 
 /* New strings */
-"Tap any file to stream it now or download it to keep. Files marked “fetching” are being downloaded." = "Tap any file to stream it now or download it to keep. Files marked “fetching” are being downloaded.";
+
+/* New strings */
+"%@ - kept" = "%@ - kept";
+"%@ - streaming, not kept" = "%@ - streaming, not kept";
+"Nothing downloads until you pick it. A streamed episode is deleted when you open another one; “keep” saves it to your VLC library." = "Nothing downloads until you pick it. A streamed episode is deleted when you open another one; “keep” saves it to your VLC library.";
