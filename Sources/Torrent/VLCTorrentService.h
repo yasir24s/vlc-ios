@@ -3,10 +3,14 @@
  *****************************************************************************
  * One libtorrent session serving two modes:
  *
- *   Download - saves into Documents/Torrents, which is the medialibrary root,
- *              so finished files appear in the library on their own.
- *   Stream   - saves into Library/Caches/TorrentStream and downloads
- *              sequentially, to be served over localhost HTTP to libvlc.
+ * Nothing is fetched when a torrent is added. Files are pulled only when the
+ * user picks one, and everything saves into Documents/Torrents -- the
+ * medialibrary root -- so kept files appear in the library on their own.
+ *
+ * A streamed file is transient: it is deleted when the user moves to another
+ * episode, unless they asked to keep it. libtorrent has no per-file delete, so
+ * eviction removes the file behind its back and the stale have-state is
+ * repaired by a recheck, lazily, only if that file is ever opened again.
  *
  * The header is deliberately free of C++ so it can sit in the Swift bridging
  * header. All libtorrent contact lives in VLCTorrentService.mm.
@@ -131,15 +135,25 @@ typedef NS_ERROR_ENUM(VLCTorrentErrorDomain, VLCTorrentError) {
 - (void)resumeTorrentWithInfoHash:(NSString *)infoHash;
 - (void)removeTorrentWithInfoHash:(NSString *)infoHash deletingFiles:(BOOL)deleteFiles;
 
-/// Fetch and keep one file: moves a streaming torrent's data out of the
-/// purgeable cache into the library-visible directory, and raises that file's
-/// priority. Never lowers anything, so a file already streaming or downloading
-/// keeps going.
+/// Fetch a file for playback. Transient: the previously streamed file of this
+/// torrent is deleted unless it was kept. Re-opening an evicted file triggers
+/// a recheck so libtorrent stops believing it still has the data.
+- (void)streamFileIndex:(NSInteger)fileIndex inTorrentWithInfoHash:(NSString *)infoHash;
+
+/// Fetch a file and keep it. Never evicted, and it stays in Documents/Torrents
+/// where the medialibrary will index it.
 - (void)keepFileIndex:(NSInteger)fileIndex inTorrentWithInfoHash:(NSString *)infoHash;
 
-/// Bias a download toward playback order, so episode one lands first instead
-/// of every episode creeping forward together. No-op before metadata.
-- (void)prioritisePlaybackOrderForTorrentWithInfoHash:(NSString *)infoHash;
+/// YES if the user asked to keep this file.
+- (BOOL)isFileKept:(NSInteger)fileIndex inTorrentWithInfoHash:(NSString *)infoHash;
+/// YES if this is the file currently being streamed.
+- (BOOL)isFileStreaming:(NSInteger)fileIndex inTorrentWithInfoHash:(NSString *)infoHash;
+
+/// Free bytes on the volume holding the download directory.
+@property (nonatomic, readonly) int64_t freeDiskBytes;
+/// Pauses every torrent when free space falls below minimumFreeBytes, and says
+/// so. Checked as data arrives, not just when a torrent is added.
+@property (nonatomic, readonly) BOOL pausedForDiskSpace;
 
 /// Restrict a download to a subset of files. Pass nil to want everything.
 - (void)setWantedFileIndexes:(nullable NSArray<NSNumber *> *)indexes
