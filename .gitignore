@@ -29,3 +29,6 @@ ImportedSources
 !Makefile
 .idea/
 .*.sw[nop]
+
+# personal magnet list, deliberately not published
+Resources/tvOS/seed-magnets.plist
