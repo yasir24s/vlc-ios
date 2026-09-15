@@ -226,6 +226,7 @@
 		44E18A532D2B806D00CB415D /* UIView+Accessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E18A522D2B806300CB415D /* UIView+Accessibility.swift */; };
 		44E18A542D2B806D00CB415D /* UIView+Accessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E18A522D2B806300CB415D /* UIView+Accessibility.swift */; };
 		44E9F0972D62C8FA00F50277 /* UIView+Accessibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E18A522D2B806300CB415D /* UIView+Accessibility.swift */; };
+		45AC7D97386178A646E9FDF1 /* VLC-ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7DCFE6743017FE7500803FD0 /* VLC-ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		485FABD4198EC9400DD4C0F8 /* PodcastDownloadButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A972311D19DEB5FC6EC0B8 /* PodcastDownloadButton.swift */; };
 		48EB579F4D4CB1BBC2C4039A /* PodcastEpisodeCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94693E8AF736940EE908E5B9 /* PodcastEpisodeCell.swift */; };
 		4AEF03CFE0C0B9517270CD51 /* PodcastSubscriptionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4048CFB0F054C0A7A6FAB1E9 /* PodcastSubscriptionModel.swift */; };
@@ -243,6 +244,7 @@
 		606F8A2F33CF7029C4EEF9DD /* PodcastsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EBF8DA0B16136EBFED6F35B /* PodcastsViewController.swift */; };
 		64EC484CC518E6CE15FA4505 /* ShowTileCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C2F86C79424A52ADE38DB5 /* ShowTileCell.swift */; };
 		65D57BC0111AC816A8E038A9 /* ShowsSectionCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B422429EEF27D7A5391F69 /* ShowsSectionCell.swift */; };
+		661DD05B126A1D199FF54C9C /* MediaLibraryWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = D976F08A2BDFA436000B737E /* MediaLibraryWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		6A4FA11D7A38A9B0482B4FF4 /* libPods-VLC-iOSTests.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 32FF604A243B75D3450DA2B7 /* libPods-VLC-iOSTests.a */; };
 		6AB8A942568658B91D9D78C1 /* ContinueListeningCarouselCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = B55E7A769F0FA52EDC5ACE1D /* ContinueListeningCarouselCell.swift */; };
 		6B73853D37525487E311855E /* PodcastStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2137B2482A68802F9C11FEEC /* PodcastStore.swift */; };
@@ -1440,6 +1442,7 @@
 		C0E3AC34D884E1FB7E0E8D43 /* PodcastShowHeaderCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FE07279E4864DC0BE2422FB /* PodcastShowHeaderCell.swift */; };
 		C59641D3A254963E44AA4E72 /* VLCActiveDownloadCell.m in Sources */ = {isa = PBXBuildFile; fileRef = 25514A95AD71903F66BDB68B /* VLCActiveDownloadCell.m */; };
 		C5EE4D04BBB421B60B95FDFC /* VLCDownloadStatusBanner.m in Sources */ = {isa = PBXBuildFile; fileRef = 7B814635952B041103B96B5A /* VLCDownloadStatusBanner.m */; };
+		C98C1E78EBAAC68AD31E23E3 /* TopShelf.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7D339B3C2FED775C00D7E95A /* TopShelf.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		CA163E3756AE2AC6CF46357F /* PodcastsOnAirBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CE4A4D0AB4A647A29E01384 /* PodcastsOnAirBridge.swift */; };
 		CA314B8FA4151B14A044C367 /* VLCDownloadProgressView.m in Sources */ = {isa = PBXBuildFile; fileRef = B785438BB91E3F75B6B42B1E /* VLCDownloadProgressView.m */; };
 		CAA0B0ED2072651000B9274E /* VLCTestMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAF76D8F20709C4100E2AD7B /* VLCTestMenu.swift */; };
@@ -1602,12 +1605,33 @@
 			remoteGlobalIDString = 7D94FCDA16DE7D1000F2623B;
 			remoteInfo = "VLC-iOS";
 		};
+		7ADACF3E73C02F81746CCFFC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7D94FCD316DE7D1000F2623B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7D339B3B2FED775C00D7E95A;
+			remoteInfo = TopShelf;
+		};
 		7DCFE6883017FFD600803FD0 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 7D94FCD316DE7D1000F2623B /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 7DCFE6733017FE7500803FD0;
 			remoteInfo = "VLC-ShareExtension";
+		};
+		8DEA3D59F0460BC569E8C37C /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7D94FCD316DE7D1000F2623B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 7DCFE6733017FE7500803FD0;
+			remoteInfo = "VLC-ShareExtension";
+		};
+		9FE2760E76B217367B488626 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7D94FCD316DE7D1000F2623B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D976F0892BDFA436000B737E;
+			remoteInfo = MediaLibraryWidgetExtension;
 		};
 		BE5EAC152DFA00AA007AF88A /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -1639,6 +1663,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				C98C1E78EBAAC68AD31E23E3 /* TopShelf.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1682,6 +1707,8 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
+				45AC7D97386178A646E9FDF1 /* VLC-ShareExtension.appex in Embed Foundation Extensions */,
+				661DD05B126A1D199FF54C9C /* MediaLibraryWidgetExtension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -4951,6 +4978,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				6392CAB61A58BF69E02F9392 /* PBXTargetDependency */,
 			);
 			name = "VLC-tvOS";
 			productName = "VLC for Apple TV";
@@ -5037,6 +5065,8 @@
 			buildRules = (
 			);
 			dependencies = (
+				EB26282D456AF023545069F4 /* PBXTargetDependency */,
+				0B95B1955DA8DD033BFFB933 /* PBXTargetDependency */,
 			);
 			name = "VLC-iOS-no-watch";
 			productName = AspenProject;
@@ -7115,6 +7145,12 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		0B95B1955DA8DD033BFFB933 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = MediaLibraryWidgetExtension;
+			target = D976F0892BDFA436000B737E /* MediaLibraryWidgetExtension */;
+			targetProxy = 9FE2760E76B217367B488626 /* PBXContainerItemProxy */;
+		};
 		4133CAE222CCB0620047A4EC /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 7D94FCDA16DE7D1000F2623B /* VLC-iOS */;
@@ -7129,6 +7165,12 @@
 			isa = PBXTargetDependency;
 			target = 7D94FCDA16DE7D1000F2623B /* VLC-iOS */;
 			targetProxy = 41B0BC8B1F73ED7D0063BA26 /* PBXContainerItemProxy */;
+		};
+		6392CAB61A58BF69E02F9392 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TopShelf;
+			target = 7D339B3B2FED775C00D7E95A /* TopShelf */;
+			targetProxy = 7ADACF3E73C02F81746CCFFC /* PBXContainerItemProxy */;
 		};
 		7DCFE6893017FFD600803FD0 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -7149,6 +7191,12 @@
 			isa = PBXTargetDependency;
 			target = D976F0892BDFA436000B737E /* MediaLibraryWidgetExtension */;
 			targetProxy = D97244FC2F155D8B00473C4B /* PBXContainerItemProxy */;
+		};
+		EB26282D456AF023545069F4 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = "VLC-ShareExtension";
+			target = 7DCFE6733017FE7500803FD0 /* VLC-ShareExtension */;
+			targetProxy = 8DEA3D59F0460BC569E8C37C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -7350,7 +7398,7 @@
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				INFOPLIST_FILE = Buildsystem/Testing/Screenshots/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -7391,7 +7439,7 @@
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				INFOPLIST_FILE = Buildsystem/Testing/Screenshots/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -7430,7 +7478,7 @@
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				INFOPLIST_FILE = Buildsystem/Testing/Screenshots/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.2;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -7470,7 +7518,7 @@
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				INFOPLIST_FILE = Buildsystem/Testing/Unit/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -7513,7 +7561,7 @@
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				INFOPLIST_FILE = Buildsystem/Testing/Unit/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -7555,7 +7603,7 @@
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				INFOPLIST_FILE = Buildsystem/Testing/Unit/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -7608,7 +7656,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				INFOPLIST_FILE = Buildsystem/Testing/UI/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -7661,7 +7709,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				INFOPLIST_FILE = Buildsystem/Testing/UI/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -7715,7 +7763,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				INFOPLIST_FILE = Buildsystem/Testing/UI/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -7962,7 +8010,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 75GAHG3SZQ;
+				DEVELOPMENT_TEAM = 7J53W37H95;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -7980,7 +8028,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER_PREFIX}.vlc-ios.TopShelf";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent.TopShelf;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = appletvos;
@@ -7988,7 +8036,7 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = 3;
-				TVOS_DEPLOYMENT_TARGET = 13.0;
+				TVOS_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Debug;
 		};
@@ -8013,7 +8061,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 75GAHG3SZQ;
+				DEVELOPMENT_TEAM = 7J53W37H95;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -8032,7 +8080,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER_PREFIX}.vlc-ios.TopShelf";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent.TopShelf;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = appletvos;
@@ -8040,7 +8088,7 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = 3;
-				TVOS_DEPLOYMENT_TARGET = 13.0;
+				TVOS_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Release;
 		};
@@ -8065,7 +8113,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 75GAHG3SZQ;
+				DEVELOPMENT_TEAM = 7J53W37H95;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -8084,7 +8132,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER_PREFIX}.vlc-ios.TopShelf";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent.TopShelf;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = appletvos;
@@ -8092,7 +8140,7 @@
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = 3;
-				TVOS_DEPLOYMENT_TARGET = 13.0;
+				TVOS_DEPLOYMENT_TARGET = 15.0;
 			};
 			name = Distribution;
 		};
@@ -8122,7 +8170,7 @@
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Sources/Headers/VLC-iOS-Prefix-Header.pch";
 				INFOPLIST_FILE = Resources/iOS/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -8178,7 +8226,7 @@
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Sources/Headers/VLC-iOS-Prefix-Header.pch";
 				INFOPLIST_FILE = Resources/iOS/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -8235,7 +8283,7 @@
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Sources/Headers/VLC-iOS-Prefix-Header.pch";
 				INFOPLIST_FILE = Resources/iOS/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -8310,7 +8358,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				ONLY_ACTIVE_ARCH = YES;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_MODULE_NAME = VLC;
@@ -8357,7 +8405,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				OTHER_CFLAGS = "-DNS_BLOCK_ASSERTIONS=1";
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_MODULE_NAME = VLC;
@@ -8395,7 +8443,7 @@
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Sources/Headers/VLC-iOS-Prefix-Header.pch";
 				INFOPLIST_FILE = "$(SRCROOT)/Resources/iOS/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -8444,7 +8492,7 @@
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Sources/Headers/VLC-iOS-Prefix-Header.pch";
 				INFOPLIST_FILE = "$(SRCROOT)/Resources/iOS/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -8703,7 +8751,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 75GAHG3SZQ;
+				DEVELOPMENT_TEAM = 7J53W37H95;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -8712,7 +8760,7 @@
 				INFOPLIST_FILE = Sources/ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = VLC;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 VideoLAN. All rights reserved.";
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -8722,7 +8770,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER_PREFIX}.vlc-ios.shareextension";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent.shareextension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -8750,7 +8798,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 75GAHG3SZQ;
+				DEVELOPMENT_TEAM = 7J53W37H95;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -8760,7 +8808,7 @@
 				INFOPLIST_FILE = Sources/ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = VLC;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 VideoLAN. All rights reserved.";
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -8770,7 +8818,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER_PREFIX}.vlc-ios.shareextension";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent.shareextension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -8798,7 +8846,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 75GAHG3SZQ;
+				DEVELOPMENT_TEAM = 7J53W37H95;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -8808,7 +8856,7 @@
 				INFOPLIST_FILE = Sources/ShareExtension/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = VLC;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 VideoLAN. All rights reserved.";
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -8818,7 +8866,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER_PREFIX}.vlc-ios.shareextension";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent.shareextension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -8864,7 +8912,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				OTHER_CFLAGS = "-DNS_BLOCK_ASSERTIONS=1";
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_MODULE_NAME = VLC;
@@ -8900,7 +8948,7 @@
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "Sources/Headers/VLC-iOS-Prefix-Header.pch";
 				INFOPLIST_FILE = "$(SRCROOT)/Resources/iOS/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -9111,7 +9159,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = 75GAHG3SZQ;
+				DEVELOPMENT_TEAM = 7J53W37H95;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -9130,7 +9178,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER_PREFIX}.vlc-ios.MediaLibraryWidget";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent.MediaLibraryWidget;
 				PRODUCT_MODULE_NAME = MediaLibraryWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -9164,7 +9212,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 75GAHG3SZQ;
+				DEVELOPMENT_TEAM = 7J53W37H95;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -9184,7 +9232,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER_PREFIX}.vlc-ios.MediaLibraryWidget";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent.MediaLibraryWidget;
 				PRODUCT_MODULE_NAME = MediaLibraryWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -9215,7 +9263,7 @@
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = 75GAHG3SZQ;
+				DEVELOPMENT_TEAM = 7J53W37H95;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
@@ -9235,7 +9283,7 @@
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = "${BUNDLE_IDENTIFIER_PREFIX}.vlc-ios.MediaLibraryWidget";
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent.MediaLibraryWidget;
 				PRODUCT_MODULE_NAME = MediaLibraryWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
