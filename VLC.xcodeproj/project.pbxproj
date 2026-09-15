@@ -7790,7 +7790,7 @@
 					"-framework",
 					SystemConfiguration,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.goodnotes;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				SDKROOT = appletvos;
@@ -7861,7 +7861,7 @@
 					"-framework",
 					SystemConfiguration,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.goodnotes;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				SDKROOT = appletvos;
@@ -7931,7 +7931,7 @@
 					"-framework",
 					SystemConfiguration,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.goodnotes;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				SDKROOT = appletvos;
@@ -8525,7 +8525,7 @@
 					SystemConfiguration,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = "$(inherited)";
-				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.goodnotes;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -8596,7 +8596,7 @@
 					SystemConfiguration,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = "$(inherited)";
-				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.goodnotes;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				"PROVISIONING_PROFILE[sdk=iphoneos*]" = "";
@@ -8669,7 +8669,7 @@
 					SystemConfiguration,
 				);
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = "$(inherited)";
-				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.goodnotes;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yasirali.vlctorrent;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE = "";
 				"PROVISIONING_PROFILE[sdk=iphoneos*]" = "";

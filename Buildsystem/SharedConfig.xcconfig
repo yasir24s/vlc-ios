@@ -17,4 +17,4 @@
 BUNDLE_IDENTIFIER_PREFIX=com.yasirali
 
 GROUP_IDENTIFIER=group.$(BUNDLE_IDENTIFIER_PREFIX).vlc-ios
-KEYCHAIN_ACCESS_GROUP=com.yasirali.goodnotes
+KEYCHAIN_ACCESS_GROUP=com.yasirali.vlctorrent
