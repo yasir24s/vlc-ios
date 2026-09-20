@@ -15,6 +15,14 @@ static NSString *const kNameKey = @"name";
 static NSString *const kAddedKey = @"added";
 static NSString *const kOpenedKey = @"opened";
 
+/// One iCloud key per magnet rather than a single key holding the whole list:
+/// two devices that each add something while apart both survive the merge,
+/// where one shared value would let whichever synced last erase the other's.
+static NSString *const kCloudBookmarkPrefix = @"bm.";
+/// A removal has to be published, not merely applied. A device that was offline
+/// when it happened still holds the magnet and would otherwise put it back.
+static NSString *const kCloudTombstonePrefix = @"rm.";
+
 #pragma mark - Bookmark
 
 @interface VLCTorrentBookmark ()
@@ -84,6 +92,12 @@ static NSString *const kOpenedKey = @"opened";
                                                  selector:@selector(refreshNamesFromActiveTorrents)
                                                      name:VLCTorrentListDidChangeNotification
                                                    object:nil];
+        [[NSNotificationCenter defaultCenter]
+            addObserver:self
+               selector:@selector(cloudDidChangeExternally:)
+                   name:NSUbiquitousKeyValueStoreDidChangeExternallyNotification
+                 object:nil];
+        [self mergeFromCloud];
     }
     return self;
 }
@@ -132,6 +146,14 @@ static NSString *const kOpenedKey = @"opened";
 
 - (void)save
 {
+    [self persistLocally];
+    [self pushToCloud];
+}
+
+/// Writes the on-disk copy and announces the change. Separate from -save so a
+/// merge can store the agreed result without immediately re-publishing it.
+- (void)persistLocally
+{
     NSMutableArray *plist = [NSMutableArray array];
     for (VLCTorrentBookmark *bookmark in _bookmarks) {
         [plist addObject:[bookmark dictionaryRepresentation]];
@@ -153,6 +175,143 @@ static NSString *const kOpenedKey = @"opened";
         NSDate *right = b.lastOpened ?: b.dateAdded;
         return [right compare:left];
     }];
+}
+
+#pragma mark - Shared across devices
+
+/*
+ * The library is shared through iCloud's key-value store rather than CloudKit
+ * or a document in iCloud Drive. Magnets are a few hundred bytes each, so the
+ * store's 1 MB and 1024-key budget is ample, and it needs no container schema
+ * and no server. It is also the one durable store tvOS actually offers, which
+ * is what the seed-plist workaround existed to paper over.
+ *
+ * Entries are keyed on info hash, so the same magnet added on two devices is
+ * one entry. A magnet with no xt=urn:btih: cannot be keyed and stays local.
+ */
+
+- (NSUbiquitousKeyValueStore *)cloudStore
+{
+    // Non-nil even with no iCloud account -- writes simply never leave the
+    // device, so the library keeps working and just stops being shared.
+    return [NSUbiquitousKeyValueStore defaultStore];
+}
+
+- (void)pushToCloud
+{
+    NSUbiquitousKeyValueStore *store = [self cloudStore];
+    for (VLCTorrentBookmark *bookmark in _bookmarks) {
+        if (!bookmark.infoHash) {
+            continue;
+        }
+        [store setDictionary:[bookmark dictionaryRepresentation]
+                      forKey:[kCloudBookmarkPrefix
+                                 stringByAppendingString:bookmark.infoHash.lowercaseString]];
+    }
+    [store synchronize];
+}
+
+- (void)publishRemovalOf:(VLCTorrentBookmark *)bookmark
+{
+    if (!bookmark.infoHash) {
+        return;
+    }
+    NSString *hash = bookmark.infoHash.lowercaseString;
+    NSUbiquitousKeyValueStore *store = [self cloudStore];
+    [store removeObjectForKey:[kCloudBookmarkPrefix stringByAppendingString:hash]];
+    // Stored as a time interval rather than an NSDate so the value survives
+    // whatever plist round-tripping the store does to it.
+    [store setDouble:[NSDate date].timeIntervalSince1970
+              forKey:[kCloudTombstonePrefix stringByAppendingString:hash]];
+    [store synchronize];
+}
+
+- (void)cloudDidChangeExternally:(NSNotification *)notification
+{
+    // Delivered off the main thread; _bookmarks is touched from the main one.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self mergeFromCloud];
+    });
+}
+
+- (void)mergeFromCloud
+{
+    NSDictionary<NSString *, id> *cloud = [[self cloudStore] dictionaryRepresentation];
+    if (cloud.count == 0) {
+        // First device to run: seed the shared store from what it already has.
+        [self pushToCloud];
+        return;
+    }
+
+    NSMutableDictionary<NSString *, VLCTorrentBookmark *> *mine = [NSMutableDictionary dictionary];
+    NSMutableArray<VLCTorrentBookmark *> *unkeyed = [NSMutableArray array];
+    for (VLCTorrentBookmark *bookmark in _bookmarks) {
+        if (bookmark.infoHash) {
+            mine[bookmark.infoHash.lowercaseString] = bookmark;
+        } else {
+            [unkeyed addObject:bookmark];
+        }
+    }
+
+    NSMutableDictionary<NSString *, VLCTorrentBookmark *> *theirs = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString *, NSDate *> *removals = [NSMutableDictionary dictionary];
+    for (NSString *key in cloud) {
+        if ([key hasPrefix:kCloudBookmarkPrefix]) {
+            id value = cloud[key];
+            if (![value isKindOfClass:[NSDictionary class]]) {
+                continue;
+            }
+            VLCTorrentBookmark *bookmark = [VLCTorrentBookmark bookmarkWithDictionary:value];
+            if (bookmark) {
+                theirs[[key substringFromIndex:kCloudBookmarkPrefix.length]] = bookmark;
+            }
+        } else if ([key hasPrefix:kCloudTombstonePrefix]) {
+            id value = cloud[key];
+            if ([value isKindOfClass:[NSNumber class]]) {
+                removals[[key substringFromIndex:kCloudTombstonePrefix.length]] =
+                    [NSDate dateWithTimeIntervalSince1970:[value doubleValue]];
+            }
+        }
+    }
+
+    NSMutableSet<NSString *> *hashes = [NSMutableSet setWithArray:mine.allKeys];
+    [hashes addObjectsFromArray:theirs.allKeys];
+
+    NSMutableArray<VLCTorrentBookmark *> *merged = [NSMutableArray arrayWithArray:unkeyed];
+    for (NSString *hash in hashes) {
+        VLCTorrentBookmark *keep = [self resolveLocal:mine[hash]
+                                                cloud:theirs[hash]
+                                            removedAt:removals[hash]];
+        if (keep) {
+            [merged addObject:keep];
+        }
+    }
+
+    _bookmarks = merged;
+    [self sort];
+    [self persistLocally];
+    [self pushToCloud];
+}
+
+/// Decides the fate of one magnet during a merge. Called once per info hash
+/// seen on this device, in the shared store, or both.
+///
+/// @param local     what this device already had, or nil if it is new here.
+/// @param cloud     what another device published, or nil if only we have it.
+/// @param removedAt when some device deleted it, or nil if none did.
+/// @return the bookmark to keep, or nil to drop it from the library.
+- (nullable VLCTorrentBookmark *)resolveLocal:(nullable VLCTorrentBookmark *)local
+                                        cloud:(nullable VLCTorrentBookmark *)cloud
+                                    removedAt:(nullable NSDate *)removedAt
+{
+    // TODO: this is the policy decision -- see the note in the header.
+    // Placeholder: additive union, deletions apply only if nothing newer
+    // re-added the magnet afterwards.
+    VLCTorrentBookmark *keep = local ?: cloud;
+    if (removedAt && keep && [keep.dateAdded compare:removedAt] == NSOrderedAscending) {
+        return nil;
+    }
+    return keep;
 }
 
 #pragma mark - Access
@@ -223,6 +382,9 @@ static NSString *const kOpenedKey = @"opened";
 - (void)removeBookmark:(VLCTorrentBookmark *)bookmark
 {
     [_bookmarks removeObject:bookmark];
+    // Publish the removal before saving: -save republishes what remains, and
+    // on its own that would say nothing about what just went away.
+    [self publishRemovalOf:bookmark];
     [self save];
 }
 

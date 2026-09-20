@@ -4,6 +4,15 @@
  * A torrent removed from the session takes its magnet with it, so re-watching
  * something means finding and pasting the link again. This keeps a list of
  * every magnet opened, named after the torrent once metadata reveals one.
+ *
+ * The list is shared across every device signed into the same iCloud account
+ * through NSUbiquitousKeyValueStore, keyed on info hash. iPhone, iPad, Apple TV
+ * and the Mac all carry the same bundle identifier, so they resolve to one
+ * store with no container or schema to configure. It is also the only durable
+ * store tvOS offers, which is what the bundled seed plist worked around.
+ *
+ * How local and remote disagreements are settled lives in one place --
+ * -resolveLocal:cloud:removedAt: in the implementation.
  *****************************************************************************/
 
 #import <Foundation/Foundation.h>
