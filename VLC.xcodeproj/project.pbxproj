@@ -1404,6 +1404,7 @@
 		A77CC807F4B239D93F4F205F /* ContinueListeningSectionCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6156983777DD2563597369F8 /* ContinueListeningSectionCell.swift */; };
 		A79246C8170F11DF0036AAF2 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = A79246C6170F11DF0036AAF2 /* Localizable.strings */; };
 		A915B629AD76A93EE6B53ADC /* seed-magnets.plist in Resources */ = {isa = PBXBuildFile; fileRef = F08C7F5B47DDE98E4183AD9D /* seed-magnets.plist */; };
+		AF199178ACA37CF4619BD45C /* seed-magnets.plist in Resources */ = {isa = PBXBuildFile; fileRef = F08C7F5B47DDE98E4183AD9D /* seed-magnets.plist */; };
 		AB55D6531B36F36C8871D96D /* PodcastShowDetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 281D3E055E08E6B041594BB7 /* PodcastShowDetailViewController.swift */; };
 		AD7E4C938BA345199B5386E2 /* VLCDownloadStatusBanner.m in Sources */ = {isa = PBXBuildFile; fileRef = 7B814635952B041103B96B5A /* VLCDownloadStatusBanner.m */; };
 		B0168D32FBDD8938F1D2B46E /* VLCTorrentLibrary.m in Sources */ = {isa = PBXBuildFile; fileRef = D0A78571E21F3B6E6A0C51FD /* VLCTorrentLibrary.m */; };
@@ -5477,6 +5478,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AF199178ACA37CF4619BD45C /* seed-magnets.plist in Resources */,
 				7DA515682EF82B63000C9995 /* AppIntentVocabulary.plist in Resources */,
 				7DA515692EF82B63000C9995 /* main.js in Resources */,
 				7DA5156A2EF82B63000C9995 /* InfoPlist.strings in Resources */,
