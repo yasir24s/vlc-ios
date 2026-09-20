@@ -18,3 +18,12 @@ BUNDLE_IDENTIFIER_PREFIX=com.yasirali
 
 GROUP_IDENTIFIER=group.$(BUNDLE_IDENTIFIER_PREFIX).vlc-ios
 KEYCHAIN_ACCESS_GROUP=com.yasirali.vlctorrent
+
+// Version, in one place. Every target refers to these rather than carrying its
+// own copy, because App Store Connect rejects an upload whose embedded .appex
+// reports a different CFBundleVersion than the app containing it (ITMS-90473),
+// and per-target copies had already drifted to 1 while the apps said 727.
+// Bump VLC_BUILD_NUMBER for every upload: a build number is never reusable.
+
+VLC_MARKETING_VERSION=4.0.0
+VLC_BUILD_NUMBER=728
