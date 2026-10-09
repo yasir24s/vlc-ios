@@ -26,4 +26,4 @@ KEYCHAIN_ACCESS_GROUP=com.yasirali.vlctorrent
 // Bump VLC_BUILD_NUMBER for every upload: a build number is never reusable.
 
 VLC_MARKETING_VERSION=4.0.0
-VLC_BUILD_NUMBER=731
+VLC_BUILD_NUMBER=732

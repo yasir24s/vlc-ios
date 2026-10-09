@@ -714,6 +714,8 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 #endif
 }
 
+#if !TARGET_OS_TV
+// Swipe editing does not exist on tvOS, and neither does this callback.
 - (void)tableView:(UITableView *)tableView didEndEditingRowAtIndexPath:(nullable NSIndexPath *)indexPath
 {
     if (!self.reloadWhenEditingEnds) {
@@ -725,5 +727,6 @@ static NSTimeInterval const kRefreshInterval = 1.0;
         [self refresh];
     });
 }
+#endif
 
 @end
