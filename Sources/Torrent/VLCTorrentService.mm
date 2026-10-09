@@ -66,6 +66,9 @@ struct Record {
     /// Files whose data we deleted from under libtorrent. Its have-state is
     /// stale for these until a recheck, so re-opening one must force it.
     std::set<int> evictedFiles;
+    /// Files being re-verified after an eviction. Until torrent_checked_alert
+    /// arrives libtorrent may still report their pieces as present.
+    std::set<int> recheckingFiles;
 };
 
 NSString *ToNSString(std::string const &s)
@@ -434,6 +437,22 @@ BOOL IsPlayableExtension(NSString *name)
         return;
     }
 
+    if (auto *checked = lt::alert_cast<lt::torrent_checked_alert>(alert)) {
+        // The recheck has caught libtorrent up with the files deleted from
+        // under it, so its have-state for them means something again.
+        if (checked->handle.is_valid()) {
+            std::string const key = HashKey(checked->handle.status().info_hashes);
+            dispatch_sync(_queue, ^{
+                auto found = _torrents.find(key);
+                if (found != _torrents.end()) {
+                    found->second.recheckingFiles.clear();
+                }
+            });
+        }
+        [self postListDidChange];
+        return;
+    }
+
     if (auto *finished = lt::alert_cast<lt::torrent_finished_alert>(alert)) {
         [self handleFinishedTorrent:finished->handle];
         return;
@@ -667,6 +686,15 @@ BOOL IsPlayableExtension(NSString *name)
         params.flags |= lt::torrent_flags::sequential_download;
     }
 
+    // A .torrent file arrives with its file list already known, so
+    // metadata_received_alert never fires and -wantNothingByDefault: never
+    // runs. Without this, opening a season pack's .torrent would start
+    // fetching the whole pack. Resume data brings its own priorities.
+    if (params.ti && params.file_priorities.empty()) {
+        params.file_priorities.assign(static_cast<size_t>(params.ti->layout().num_files()),
+                                      lt::dont_download);
+    }
+
     std::string key = HashKey(params.info_hashes);
     if (key.empty()) {
         if (error) {
@@ -760,10 +788,24 @@ BOOL IsPlayableExtension(NSString *name)
         return nil;
     }
 
-    if (![self hasRoomForBytes:(params.ti ? params.ti->total_size() : 0) error:error]) {
+    // Nothing is fetched until a file is picked, so the torrent's total size
+    // says nothing about what will land on disk: checking it refused large
+    // season packs outright. The running disk guard covers what does arrive.
+    return [self addTorrentParams:std::move(params) mode:mode error:error];
+}
+
++ (nullable NSString *)magnetURIForTorrentFileAtPath:(NSString *)path
+{
+    try {
+        lt::add_torrent_params params = lt::load_torrent_file(path.fileSystemRepresentation);
+        // Only the identity belongs in a shareable link, not peer lists.
+        params.peers.clear();
+        params.dht_nodes.clear();
+        std::string const magnet = lt::make_magnet_uri(params);
+        return magnet.empty() ? nil : ToNSString(magnet);
+    } catch (std::exception const &) {
         return nil;
     }
-    return [self addTorrentParams:std::move(params) mode:mode error:error];
 }
 
 #pragma mark - Persistence
@@ -1093,6 +1135,9 @@ BOOL IsPlayableExtension(NSString *name)
         // never re-fetch them. A recheck is the only way to correct that, and
         // it is only paid when the user actually returns to an evicted file.
         if (record.evictedFiles.erase(index) > 0) {
+            // Mark it untrustworthy in the same step as un-evicting it, so no
+            // read can slip between the two and be served deleted data.
+            record.recheckingFiles.insert(index);
             needsRecheck = YES;
         }
 
@@ -1419,6 +1464,13 @@ BOOL IsPlayableExtension(NSString *name)
         if (fileOffset >= fileSize) {
             return;
         }
+        // Pieces of a deleted file still read as present until a recheck
+        // finishes; serving them would hand the player bytes that are gone.
+        Record const &record = found->second;
+        int const asInt = static_cast<int>(fileIndex);
+        if (record.evictedFiles.count(asInt) > 0 || record.recheckingFiles.count(asInt) > 0) {
+            return;
+        }
         int64_t const wanted = std::min(maxLength, fileSize - fileOffset);
 
         // Walk forward from the piece under the cursor for as long as pieces
@@ -1440,6 +1492,66 @@ BOOL IsPlayableExtension(NSString *name)
         available = std::min(available, wanted);
     });
     return available;
+}
+
+- (BOOL)prefetchFileIndex:(NSInteger)fileIndex
+    inTorrentWithInfoHash:(NSString *)infoHash
+                headBytes:(int64_t)headBytes
+                tailBytes:(int64_t)tailBytes
+            withinSeconds:(NSTimeInterval)seconds
+{
+    int const index = static_cast<int>(fileIndex);
+    __block BOOL started = NO;
+    dispatch_sync(_queue, ^{
+        auto found = _torrents.find(std::string(infoHash.UTF8String));
+        if (found == _torrents.end() || !found->second.handle.is_valid()) {
+            return;
+        }
+        Record &record = found->second;
+        lt::torrent_handle const &handle = record.handle;
+        std::shared_ptr<const lt::torrent_info> info = handle.torrent_file();
+        if (!info) {
+            return;
+        }
+        lt::file_storage const &storage = info->layout();
+        if (index < 0 || index >= storage.num_files()) {
+            return;
+        }
+
+        // An evicted file needs a recheck first, and a recheck stops the whole
+        // torrent downloading -- including the episode still on screen. That
+        // waits for the handover, when the current episode is done with it.
+        if (record.evictedFiles.count(index) > 0 || record.recheckingFiles.count(index) > 0) {
+            return;
+        }
+
+        lt::file_index_t const file{index};
+        // Wanted, but not at top priority: that stays with the file playing.
+        if (handle.file_priority(file) == lt::dont_download) {
+            handle.file_priority(file, lt::default_priority);
+        }
+
+        // Due when the next episode is, which is later than the current file's
+        // read-ahead deadlines, so prefetching cannot starve what is playing.
+        int64_t const size = storage.file_size(file);
+        int const due = std::max(5000, static_cast<int>(seconds * 1000.0));
+        auto deadline = [&](int64_t from, int64_t length, int base) {
+            if (length <= 0 || from >= size) {
+                return;
+            }
+            int64_t const to = std::min(size, from + length) - 1;
+            int const first = static_cast<int>(info->map_file(file, from, 0).piece);
+            int const last = static_cast<int>(info->map_file(file, to, 0).piece);
+            for (int piece = first; piece <= last; piece++) {
+                handle.set_piece_deadline(lt::piece_index_t{piece}, base + (piece - first) * 20);
+            }
+        };
+        deadline(0, headBytes, due);
+        // The tail too: MKV keeps its seek index at the end of the file.
+        deadline(std::max<int64_t>(0, size - tailBytes), tailBytes, due + 2000);
+        started = YES;
+    });
+    return started;
 }
 
 - (void)requestFileIndex:(NSInteger)fileIndex

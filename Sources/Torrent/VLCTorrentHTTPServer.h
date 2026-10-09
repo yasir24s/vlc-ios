@@ -30,6 +30,13 @@ NS_ASSUME_NONNULL_BEGIN
 /// Same, picking the largest playable file in the torrent.
 - (nullable NSURL *)streamURLForTorrentWithInfoHash:(NSString *)infoHash;
 
+/// Reads back which torrent file a stream URL from this bridge points at, so
+/// whatever the player is on can be mapped to its place in the torrent.
+/// NO for any URL this bridge did not hand out.
++ (BOOL)parseStreamURL:(NSURL *)url
+              infoHash:(NSString * _Nullable * _Nullable)infoHash
+             fileIndex:(NSInteger * _Nullable)fileIndex;
+
 @end
 
 NS_ASSUME_NONNULL_END

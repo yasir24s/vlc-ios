@@ -188,6 +188,16 @@ typedef NS_ERROR_ENUM(VLCTorrentErrorDomain, VLCTorrentError) {
                            fileOffset:(int64_t)fileOffset
                             maxLength:(int64_t)maxLength;
 
+/// Start fetching a file ahead of time without disturbing the one playing:
+/// it becomes wanted, and its head and tail get deadlines due `seconds` from
+/// now. NO when it cannot be done yet -- a file evicted earlier needs a
+/// recheck first, and that waits for the handover.
+- (BOOL)prefetchFileIndex:(NSInteger)fileIndex
+    inTorrentWithInfoHash:(NSString *)infoHash
+                headBytes:(int64_t)headBytes
+                tailBytes:(int64_t)tailBytes
+            withinSeconds:(NSTimeInterval)seconds;
+
 /// Pull this window to the front of the queue: deadlines on the covering
 /// pieces, ascending so they arrive in playback order.
 - (void)requestFileIndex:(NSInteger)fileIndex
@@ -201,6 +211,9 @@ typedef NS_ERROR_ENUM(VLCTorrentErrorDomain, VLCTorrentError) {
 @property (nonatomic, readonly, copy) NSString *downloadDirectory;
 /// Library/Caches/TorrentStream. Outside the library, purgeable by iOS.
 @property (nonatomic, readonly, copy) NSString *streamCacheDirectory;
+
+/// The magnet link a .torrent file describes, with its name and trackers.
++ (nullable NSString *)magnetURIForTorrentFileAtPath:(NSString *)path;
 
 + (BOOL)isMagnetURL:(NSURL *)url;
 + (BOOL)isTorrentFileURL:(NSURL *)url NS_SWIFT_NAME(isTorrentFile(_:));

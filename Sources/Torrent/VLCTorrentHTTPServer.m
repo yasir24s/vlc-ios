@@ -417,6 +417,35 @@ static NSString *gAccessToken = nil;
     return [NSURL URLWithString:string];
 }
 
++ (BOOL)parseStreamURL:(NSURL *)url
+              infoHash:(NSString **)infoHash
+             fileIndex:(NSInteger *)fileIndex
+{
+    // http://127.0.0.1:<port>/<token>/<infohash>/<fileIndex>/<name>
+    if (![url.host isEqualToString:@"127.0.0.1"]) {
+        return NO;
+    }
+    NSArray<NSString *> *parts = url.pathComponents;
+    // pathComponents leads with "/" for an absolute path.
+    if (parts.count < 5 || ![parts[1] isEqualToString:gAccessToken]) {
+        return NO;
+    }
+    NSString *hash = parts[2];
+    NSString *indexString = parts[3];
+    NSScanner *scanner = [NSScanner scannerWithString:indexString];
+    NSInteger index = 0;
+    if (hash.length == 0 || ![scanner scanInteger:&index] || !scanner.isAtEnd || index < 0) {
+        return NO;
+    }
+    if (infoHash) {
+        *infoHash = hash;
+    }
+    if (fileIndex) {
+        *fileIndex = index;
+    }
+    return YES;
+}
+
 - (nullable NSURL *)streamURLForTorrentWithInfoHash:(NSString *)infoHash
 {
     NSInteger index = [VLCTorrentService.sharedService
