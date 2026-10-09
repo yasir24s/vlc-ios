@@ -47,7 +47,17 @@ extern NSNotificationName const VLCTorrentLibraryDidChangeNotification;
 
 - (void)markBookmarkOpened:(VLCTorrentBookmark *)bookmark;
 - (void)renameBookmark:(VLCTorrentBookmark *)bookmark to:(NSString *)name;
-- (void)removeBookmark:(VLCTorrentBookmark *)bookmark;
+/// On this device only, every other device keeps it. Everywhere, the removal
+/// is published through iCloud and each device drops it on its next merge.
+- (void)removeBookmark:(VLCTorrentBookmark *)bookmark everywhere:(BOOL)everywhere;
+
+/// Keeps a copy of a .torrent and remembers it as the magnet it describes, so
+/// it is listed and shared like any other entry.
+- (nullable VLCTorrentBookmark *)rememberTorrentFileAtPath:(NSString *)path;
+
+/// This device's copy of a .torrent, if one was opened here. It carries the
+/// file list, so opening from it does not wait on the swarm for metadata.
+- (nullable NSString *)torrentFilePathForInfoHash:(NSString *)infoHash;
 
 /// Pulls real torrent names in once metadata has arrived for them.
 - (void)refreshNamesFromActiveTorrents;

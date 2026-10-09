@@ -33,6 +33,13 @@ NS_ASSUME_NONNULL_BEGIN
    presentingController:(nullable UIViewController *)controller
     NS_SWIFT_NAME(streamFile(at:ofTorrent:presenting:));
 
+/// Opens a .torrent handed over by another app -- Files, AirDrop, Mail -- or
+/// picked in the Torrents tab. Copies it in, remembers it in the library so it
+/// is listed and shared, and streams it.
+- (void)openTorrentFileAtURL:(NSURL *)url
+        presentingController:(nullable UIViewController *)controller
+    NS_SWIFT_NAME(openTorrentFile(at:presenting:));
+
 /// Same, for a .torrent file already on disk.
 - (void)streamTorrentFileAtPath:(NSString *)path
            presentingController:(nullable UIViewController *)controller

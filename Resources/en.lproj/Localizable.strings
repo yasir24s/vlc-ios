@@ -904,7 +904,6 @@
 "Pause" = "Pause";
 "Remove and delete files" = "Remove and delete files";
 "Remove and keep files" = "Remove and keep files";
-"Remove this torrent?" = "Remove this torrent?";
 "Remove" = "Remove";
 "Resume" = "Resume";
 "Still fetching this torrent's file list." = "Still fetching this torrent's file list.";
@@ -919,7 +918,6 @@
 /* New strings */
 "Active" = "Active";
 "Copy link" = "Copy link";
-"Forget" = "Forget";
 "Last opened %@" = "Last opened %@";
 "No torrents yet.\nAdd a magnet link and it will be saved here for next time." = "No torrents yet.\nAdd a magnet link and it will be saved here for next time.";
 "Not opened yet" = "Not opened yet";
@@ -945,3 +943,16 @@
 /* New strings */
 "Choose a file" = "Choose a file";
 "Nothing downloads until you pick it, and tvOS keeps nothing permanently — pick an episode to stream it." = "Nothing downloads until you pick it, and tvOS keeps nothing permanently — pick an episode to stream it.";
+
+/* New strings */
+"Delete on All Devices" = "Delete on All Devices";
+"Delete on This Device" = "Delete on This Device";
+"Delete “%@”?" = "Delete “%@”?";
+"Delete" = "Delete";
+"Delete…" = "Delete…";
+"Open .torrent File…" = "Open .torrent File…";
+"Stops it on this device. Its saved link stays in the list." = "Stops it on this device. Its saved link stays in the list.";
+"That .torrent file could not be read." = "That .torrent file could not be read.";
+"This device only: your other devices keep it.\nAll devices: it goes from every device signed in to your iCloud account." = "This device only: your other devices keep it.\nAll devices: it goes from every device signed in to your iCloud account.";
+"This link was never shared with your other devices." = "This link was never shared with your other devices.";
+"Up next: %@" = "Up next: %@";

@@ -67,6 +67,9 @@ static NSString *const kCloudTombstonePrefix = @"rm.";
 
 @implementation VLCTorrentLibrary {
     NSMutableArray<VLCTorrentBookmark *> *_bookmarks;
+    /// Info hashes deleted on this device only. Local, never synced: every
+    /// other device still lists them.
+    NSMutableSet<NSString *> *_hidden;
 }
 
 + (VLCTorrentLibrary *)sharedLibrary
@@ -84,7 +87,9 @@ static NSString *const kCloudTombstonePrefix = @"rm.";
     self = [super init];
     if (self) {
         _bookmarks = [NSMutableArray array];
+        _hidden = [NSMutableSet set];
         [self load];
+        [self loadHidden];
         [self importFromSeedSources];
         // Magnets carry at best a dn= hint, so adopt the torrent's real name
         // as soon as metadata produces one.
@@ -165,6 +170,68 @@ static NSString *const kCloudTombstonePrefix = @"rm.";
         [[NSNotificationCenter defaultCenter]
             postNotificationName:VLCTorrentLibraryDidChangeNotification object:self];
     });
+}
+
+- (NSString *)hiddenPath
+{
+    return [[[self storePath] stringByDeletingLastPathComponent]
+        stringByAppendingPathComponent:@"hidden.plist"];
+}
+
+- (void)loadHidden
+{
+    for (id hash in [NSArray arrayWithContentsOfFile:[self hiddenPath]]) {
+        if ([hash isKindOfClass:[NSString class]]) {
+            [_hidden addObject:[hash lowercaseString]];
+        }
+    }
+}
+
+- (void)saveHidden
+{
+    if (![_hidden.allObjects writeToFile:[self hiddenPath] atomically:YES]) {
+        NSLog(@"VLCTorrentLibrary: could not save the hidden list");
+    }
+}
+
+/// YES when a passive source must not bring this magnet back: it was deleted
+/// here, or deleted everywhere. Only an explicit request overrides either.
+- (BOOL)isSuppressed:(NSString *)hash
+{
+    if ([_hidden containsObject:hash]) {
+        return YES;
+    }
+    return [[self cloudStore] objectForKey:
+        [kCloudTombstonePrefix stringByAppendingString:hash]] != nil;
+}
+
+- (NSString *)torrentFilesDirectory
+{
+    NSString *directory = [[[self storePath] stringByDeletingLastPathComponent]
+        stringByAppendingPathComponent:@"files"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:directory
+                             withIntermediateDirectories:YES
+                                              attributes:nil
+                                                   error:nil];
+    return directory;
+}
+
+- (NSString *)storedTorrentPathForHash:(NSString *)hash
+{
+    return [[self torrentFilesDirectory] stringByAppendingPathComponent:
+        [hash.lowercaseString stringByAppendingPathExtension:@"torrent"]];
+}
+
+- (nullable NSString *)torrentFilePathForInfoHash:(NSString *)infoHash
+{
+    NSString *path = [self storedTorrentPathForHash:infoHash];
+    return [[NSFileManager defaultManager] fileExistsAtPath:path] ? path : nil;
+}
+
+- (void)removeTorrentFileForInfoHash:(NSString *)hash
+{
+    [[NSFileManager defaultManager] removeItemAtPath:[self storedTorrentPathForHash:hash]
+                                               error:nil];
 }
 
 - (void)sort
@@ -279,11 +346,19 @@ static NSString *const kCloudTombstonePrefix = @"rm.";
 
     NSMutableArray<VLCTorrentBookmark *> *merged = [NSMutableArray arrayWithArray:unkeyed];
     for (NSString *hash in hashes) {
+        // Deleted on this device only: the shared store still lists it for
+        // everyone else, it just stays off this device's list.
+        if ([_hidden containsObject:hash]) {
+            continue;
+        }
         VLCTorrentBookmark *keep = [self resolveLocal:mine[hash]
                                                 cloud:theirs[hash]
                                             removedAt:removals[hash]];
         if (keep) {
             [merged addObject:keep];
+        } else {
+            // Another device deleted it everywhere; its local .torrent goes too.
+            [self removeTorrentFileForInfoHash:hash];
         }
     }
 
@@ -338,10 +413,31 @@ static NSString *const kCloudTombstonePrefix = @"rm.";
 
 - (nullable VLCTorrentBookmark *)rememberMagnetURI:(NSString *)magnetURI
 {
+    return [self rememberMagnetURI:magnetURI explicitly:YES];
+}
+
+/// `explicitly` means the user asked for this magnet -- pasted it, opened it --
+/// which overrides an earlier delete on this device. The bundled seed list and
+/// the tvOS upload folder are passive: left to themselves they would put back,
+/// on every launch, whatever had been deleted.
+- (nullable VLCTorrentBookmark *)rememberMagnetURI:(NSString *)magnetURI
+                                        explicitly:(BOOL)explicitly
+{
     NSString *trimmed = [magnetURI stringByTrimmingCharactersInSet:
         [NSCharacterSet whitespaceAndNewlineCharacterSet]];
     if (![trimmed.lowercaseString hasPrefix:@"magnet:"]) {
         return nil;
+    }
+
+    NSString *hash = [VLCTorrentLibrary infoHashFromMagnetURI:trimmed].lowercaseString;
+    if (hash) {
+        if (!explicitly && [self isSuppressed:hash]) {
+            return nil;
+        }
+        if (explicitly && [_hidden containsObject:hash]) {
+            [_hidden removeObject:hash];
+            [self saveHidden];
+        }
     }
 
     VLCTorrentBookmark *existing = [self bookmarkForMagnetURI:trimmed];
@@ -354,7 +450,11 @@ static NSString *const kCloudTombstonePrefix = @"rm.";
     bookmark.infoHash = [VLCTorrentLibrary infoHashFromMagnetURI:trimmed];
     bookmark.name = [VLCTorrentLibrary displayNameFromMagnetURI:trimmed]
         ?: NSLocalizedString(@"Untitled torrent", nil);
-    bookmark.dateAdded = [NSDate date];
+    // A passive import has no moment the user chose it, so it carries none: any
+    // deletion must beat it. Dated now, a fresh install's seed list would
+    // out-date an older delete-everywhere tombstone, win the merge, and put the
+    // magnet back on every device.
+    bookmark.dateAdded = explicitly ? [NSDate date] : [NSDate distantPast];
     [_bookmarks addObject:bookmark];
     [self sort];
     [self save];
@@ -379,13 +479,50 @@ static NSString *const kCloudTombstonePrefix = @"rm.";
     [self save];
 }
 
-- (void)removeBookmark:(VLCTorrentBookmark *)bookmark
+- (void)removeBookmark:(VLCTorrentBookmark *)bookmark everywhere:(BOOL)everywhere
 {
     [_bookmarks removeObject:bookmark];
-    // Publish the removal before saving: -save republishes what remains, and
-    // on its own that would say nothing about what just went away.
-    [self publishRemovalOf:bookmark];
+    NSString *hash = bookmark.infoHash.lowercaseString;
+    if (hash) {
+        [self removeTorrentFileForInfoHash:hash];
+        if (everywhere) {
+            // Publish before saving: -save republishes what remains, and on
+            // its own that says nothing about what just went away.
+            [self publishRemovalOf:bookmark];
+        } else {
+            // Without remembering this, the next merge would fetch it straight
+            // back from the shared store.
+            [_hidden addObject:hash];
+            [self saveHidden];
+        }
+    }
     [self save];
+}
+
+- (nullable VLCTorrentBookmark *)rememberTorrentFileAtPath:(NSString *)path
+{
+    return [self rememberTorrentFileAtPath:path explicitly:YES];
+}
+
+- (nullable VLCTorrentBookmark *)rememberTorrentFileAtPath:(NSString *)path
+                                                explicitly:(BOOL)explicitly
+{
+    NSString *magnet = [VLCTorrentService magnetURIForTorrentFileAtPath:path];
+    if (!magnet) {
+        return nil;
+    }
+    VLCTorrentBookmark *bookmark = [self rememberMagnetURI:magnet explicitly:explicitly];
+    NSString *hash = bookmark.infoHash.lowercaseString;
+    if (hash) {
+        // Only the magnet is shared. The .torrent stays on this device because
+        // it carries the file list, so opening from it needs no peers at all.
+        NSString *copy = [self storedTorrentPathForHash:hash];
+        if (![path isEqualToString:copy]) {
+            [[NSFileManager defaultManager] removeItemAtPath:copy error:nil];
+            [[NSFileManager defaultManager] copyItemAtPath:path toPath:copy error:nil];
+        }
+    }
+    return bookmark;
 }
 
 - (void)refreshNamesFromActiveTorrents
@@ -430,9 +567,12 @@ static NSString *const kCloudTombstonePrefix = @"rm.";
         if (![magnet isKindOfClass:[NSString class]] || [self bookmarkForMagnetURI:magnet]) {
             continue;
         }
-        VLCTorrentBookmark *bookmark = [self rememberMagnetURI:magnet];
+        VLCTorrentBookmark *bookmark = [self rememberMagnetURI:magnet explicitly:NO];
+        if (!bookmark) {
+            continue;
+        }
         NSString *name = entry[kNameKey];
-        if (bookmark && [name isKindOfClass:[NSString class]]) {
+        if ([name isKindOfClass:[NSString class]]) {
             bookmark.name = name;
         }
         added++;
@@ -444,15 +584,23 @@ static NSString *const kCloudTombstonePrefix = @"rm.";
     NSString *uploads = [caches stringByAppendingPathComponent:@"Upload"];
     for (NSString *name in [[NSFileManager defaultManager] contentsOfDirectoryAtPath:uploads error:nil]) {
         NSString *extension = name.pathExtension.lowercaseString;
+        NSString *path = [uploads stringByAppendingPathComponent:name];
+        // tvOS has no Files app, so VLC's web upload is the only way a .torrent
+        // reaches the Apple TV.
+        if ([extension isEqualToString:@"torrent"]) {
+            NSUInteger const before = _bookmarks.count;
+            [self rememberTorrentFileAtPath:path explicitly:NO];
+            added += _bookmarks.count - before;
+            continue;
+        }
         if (![extension isEqualToString:@"txt"] && ![extension isEqualToString:@"magnets"] &&
             ![extension isEqualToString:@"plist"]) {
             continue;
         }
-        NSString *text = [NSString stringWithContentsOfFile:
-            [uploads stringByAppendingPathComponent:name]
+        NSString *text = [NSString stringWithContentsOfFile:path
                                                    encoding:NSUTF8StringEncoding error:nil];
         if (text) {
-            added += [self importFromText:text];
+            added += [self importFromText:text explicitly:NO];
         }
     }
 
@@ -475,6 +623,11 @@ static NSString *const kCloudTombstonePrefix = @"rm.";
 
 - (NSUInteger)importFromText:(NSString *)text
 {
+    return [self importFromText:text explicitly:YES];
+}
+
+- (NSUInteger)importFromText:(NSString *)text explicitly:(BOOL)explicitly
+{
     // Scan rather than split on newlines, so a page of pasted text works as
     // well as a tidy list.
     NSUInteger added = 0;
@@ -486,7 +639,8 @@ static NSString *const kCloudTombstonePrefix = @"rm.";
         [expression matchesInString:text options:0 range:NSMakeRange(0, text.length)];
     for (NSTextCheckingResult *match in matches) {
         NSString *magnet = [text substringWithRange:match.range];
-        if (![self bookmarkForMagnetURI:magnet] && [self rememberMagnetURI:magnet]) {
+        if (![self bookmarkForMagnetURI:magnet] &&
+            [self rememberMagnetURI:magnet explicitly:explicitly]) {
             added++;
         }
     }

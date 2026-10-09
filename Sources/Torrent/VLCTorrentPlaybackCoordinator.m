@@ -7,6 +7,7 @@
 #import "VLCPlaybackService.h"
 #import "VLCTorrentHTTPServer.h"
 #import "VLCTorrentFilesViewController.h"
+#import "VLCTorrentLibrary.h"
 #import "VLCTorrentService.h"
 
 /// Fetching metadata for a magnet means finding peers first, so this can take
@@ -26,6 +27,14 @@ static int64_t const kPrebufferTailBytes = 1 * 1024 * 1024;
 /// Play anyway rather than hang forever on a slow swarm.
 static NSTimeInterval const kPrebufferTimeout = 45.0;
 
+/// How long before an episode ends the next one is announced and its head and
+/// tail fetched: enough to land on a thin swarm, late enough that scrubbing
+/// around mid-episode does not set it off.
+static NSTimeInterval const kUpNextLeadTime = 90.0;
+/// Recorded when the episode playing is the last one, so the lookup is not
+/// repeated on every position tick for its final minute and a half.
+static NSInteger const kNoNextFile = -2;
+
 @implementation VLCTorrentPlaybackCoordinator {
     UIAlertController *_progressAlert;
     NSString *_pendingInfoHash;
@@ -34,6 +43,17 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
     NSInteger _prebufferFileIndex;
     NSDate *_prebufferStart;
     __weak UIViewController *_presenter;
+
+    /// The torrent file the player is on, when it is one of ours.
+    NSString *_playingInfoHash;
+    NSInteger _playingFileIndex;
+    /// What was just queued but not yet reached. Until the player switches,
+    /// its position ticks still describe the old item, and treating that as an
+    /// advance would hand back to the old file and evict the new one.
+    NSString *_expectedInfoHash;
+    NSInteger _expectedFileIndex;
+    /// The next episode already announced and prefetched, so that happens once.
+    NSInteger _preparedFileIndex;
 }
 
 - (instancetype)init
@@ -42,6 +62,27 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
     if (self) {
         // 0 is a legitimate file index, so idle has to be NSNotFound.
         _prebufferFileIndex = NSNotFound;
+        _playingFileIndex = NSNotFound;
+        _expectedFileIndex = NSNotFound;
+        _preparedFileIndex = NSNotFound;
+
+        NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+        [center addObserver:self
+                   selector:@selector(playbackDidMoveOnToNextItem:)
+                       name:VLCPlaybackServicePlaybackDidMoveOnToNextItem
+                     object:nil];
+        [center addObserver:self
+                   selector:@selector(playbackPositionUpdated:)
+                       name:VLCPlaybackServicePlaybackPositionUpdated
+                     object:nil];
+        [center addObserver:self
+                   selector:@selector(playbackDidEnd:)
+                       name:VLCPlaybackServicePlaybackDidStop
+                     object:nil];
+        [center addObserver:self
+                   selector:@selector(playbackDidEnd:)
+                       name:VLCPlaybackServicePlaybackDidFail
+                     object:nil];
     }
     return self;
 }
@@ -77,6 +118,15 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
 - (void)streamMagnetURI:(NSString *)magnetURI
    presentingController:(nullable UIViewController *)controller
 {
+    // A .torrent opened here before carries the file list, so open from that
+    // and skip the round trip to the swarm for metadata.
+    NSString *hash = [VLCTorrentLibrary infoHashFromMagnetURI:magnetURI];
+    NSString *local = hash ? [VLCTorrentLibrary.sharedLibrary torrentFilePathForInfoHash:hash] : nil;
+    if (local) {
+        [self streamTorrentFileAtPath:local presentingController:controller];
+        return;
+    }
+
     [self startEngines];
 
     NSError *error;
@@ -96,6 +146,43 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
                                                                           mode:VLCTorrentModeStream
                                                                          error:&error];
     [self beginWaitingForInfoHash:infoHash error:error controller:controller];
+}
+
+- (void)openTorrentFileAtURL:(NSURL *)url
+        presentingController:(nullable UIViewController *)controller
+{
+    // From the Files app this is a security-scoped URL into storage we do not
+    // own, unreadable without asking; from AirDrop or Mail it is a copy left in
+    // Documents/Inbox, which sits inside the medialibrary's root. Either way,
+    // take a copy of our own and let the original go.
+    BOOL const scoped = [url startAccessingSecurityScopedResource];
+    NSString *staging = [NSTemporaryDirectory() stringByAppendingPathComponent:
+        [NSUUID.UUID.UUIDString stringByAppendingPathExtension:@"torrent"]];
+    NSError *copyError;
+    BOOL const copied = [[NSFileManager defaultManager]
+        copyItemAtURL:url toURL:[NSURL fileURLWithPath:staging] error:&copyError];
+    if (scoped) {
+        [url stopAccessingSecurityScopedResource];
+    }
+    if ([url.path rangeOfString:@"/Documents/Inbox/"].location != NSNotFound) {
+        [[NSFileManager defaultManager] removeItemAtURL:url error:nil];
+    }
+    if (!copied) {
+        NSLog(@"VLCTorrentPlaybackCoordinator: could not read %@: %@", url, copyError);
+        [self presentError:NSLocalizedString(@"That .torrent file could not be read.", nil)
+                controller:controller];
+        return;
+    }
+
+    VLCTorrentLibrary *library = VLCTorrentLibrary.sharedLibrary;
+    VLCTorrentBookmark *bookmark = [library rememberTorrentFileAtPath:staging];
+    if (bookmark) {
+        [library markBookmarkOpened:bookmark];
+    }
+    NSString *stored = bookmark.infoHash ? [library torrentFilePathForInfoHash:bookmark.infoHash] : nil;
+    [self streamTorrentFileAtPath:stored ?: staging presentingController:controller];
+    // libtorrent has read the file by now; the library kept its own copy.
+    [[NSFileManager defaultManager] removeItemAtPath:staging error:nil];
 }
 
 - (void)streamFileIndex:(NSInteger)fileIndex
@@ -302,6 +389,7 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
         [service playableFilesInPlaybackOrderForTorrentWithInfoHash:infoHash];
 
     VLCMediaList *mediaList = [[VLCMediaList alloc] init];
+    NSMutableArray<NSNumber *> *queued = [NSMutableArray array];
     NSInteger startIndex = NSNotFound;
     for (VLCTorrentFile *file in ordered) {
         NSURL *url = [server streamURLForTorrentWithInfoHash:infoHash
@@ -315,6 +403,7 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
             startIndex = (NSInteger)mediaList.count;
         }
         [mediaList addMedia:media];
+        [queued addObject:@(file.index)];
     }
 
     if (mediaList.count == 0) {
@@ -327,6 +416,7 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
         VLCMedia *media = [VLCMedia mediaWithURL:url];
         media.metaData.title = name;
         [mediaList addMedia:media];
+        [queued addObject:@(fileIndex)];
         startIndex = 0;
     }
     if (startIndex == NSNotFound) {
@@ -339,6 +429,11 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
     _pendingInfoHash = nil;
     _prebufferFileIndex = NSNotFound;
     [self stopPolling];
+
+    // The engine already streams this file -- the caller saw to that -- so the
+    // player reaching it is an arrival, not an advance needing a handover.
+    _expectedInfoHash = infoHash;
+    _expectedFileIndex = queued[(NSUInteger)startIndex].integerValue;
 
     [self dismissProgressWithCompletion:^{
         [[VLCPlaybackService sharedInstance] playMediaList:mediaList
@@ -401,6 +496,132 @@ static NSTimeInterval const kPrebufferTimeout = 45.0;
 {
     [_pollTimer invalidate];
     _pollTimer = nil;
+}
+
+#pragma mark - Next episode
+
+/// Brings the engine into line with whatever the player is on. It runs on every
+/// position tick as well as on the advance notification, so a notification
+/// that lands a moment before the player switches items cannot leave it behind.
+- (void)syncWithCurrentMedia
+{
+    NSString *hash = nil;
+    NSInteger index = NSNotFound;
+    NSURL *url = VLCPlaybackService.sharedInstance.currentlyPlayingMedia.url;
+    if (![VLCTorrentHTTPServer parseStreamURL:url infoHash:&hash fileIndex:&index]) {
+        // Something that is not one of our streams, or a stale one from before
+        // a relaunch: the access token changes every launch.
+        [self resetPlayingState];
+        return;
+    }
+
+    if (_expectedInfoHash) {
+        if ([hash isEqualToString:_expectedInfoHash] && index == _expectedFileIndex) {
+            _playingInfoHash = hash;
+            _playingFileIndex = index;
+            _preparedFileIndex = NSNotFound;
+            _expectedInfoHash = nil;
+            _expectedFileIndex = NSNotFound;
+        }
+        // Otherwise the player is still on the old item. Wait for it.
+        return;
+    }
+
+    if ([hash isEqualToString:_playingInfoHash] && index == _playingFileIndex) {
+        return;
+    }
+
+    // The player moved on by itself -- end of an episode, or a jump in the play
+    // queue. Do the handover a manual pick would have done: the previous file is
+    // evicted unless kept, this one goes to top priority, and one evicted earlier
+    // is rechecked before its stale pieces can be served.
+    NSLog(@"VLCTorrentPlaybackCoordinator: player moved on to file %ld", (long)index);
+    [VLCTorrentService.sharedService streamFileIndex:index inTorrentWithInfoHash:hash];
+    _playingInfoHash = hash;
+    _playingFileIndex = index;
+    _preparedFileIndex = NSNotFound;
+}
+
+- (void)resetPlayingState
+{
+    _playingInfoHash = nil;
+    _playingFileIndex = NSNotFound;
+    _expectedInfoHash = nil;
+    _expectedFileIndex = NSNotFound;
+    _preparedFileIndex = NSNotFound;
+}
+
+- (void)playbackDidMoveOnToNextItem:(NSNotification *)notification
+{
+    [self syncWithCurrentMedia];
+}
+
+- (void)playbackDidEnd:(NSNotification *)notification
+{
+    [self resetPlayingState];
+}
+
+- (void)playbackPositionUpdated:(NSNotification *)notification
+{
+    [self syncWithCurrentMedia];
+    if (_playingInfoHash && !_expectedInfoHash) {
+        [self prepareNextEpisodeIfDue];
+    }
+}
+
+- (void)prepareNextEpisodeIfDue
+{
+    if (_preparedFileIndex != NSNotFound) {
+        return; // already settled for this episode
+    }
+    VLCPlaybackService *playback = VLCPlaybackService.sharedInstance;
+    // With shuffle on, the next item is not the next episode.
+    if (playback.isShuffleMode) {
+        return;
+    }
+    int const length = playback.mediaLength.intValue;
+    int const played = playback.playedTime.intValue;
+    if (length <= 0 || played <= 0) {
+        return;
+    }
+    NSTimeInterval const remaining = (length - played) / 1000.0;
+    if (remaining > kUpNextLeadTime) {
+        return;
+    }
+
+    VLCTorrentFile *next = [self fileAfterIndex:_playingFileIndex
+                          inTorrentWithInfoHash:_playingInfoHash];
+    _preparedFileIndex = next ? next.index : kNoNextFile;
+    if (!next) {
+        return;
+    }
+
+    BOOL const fetching = [VLCTorrentService.sharedService
+        prefetchFileIndex:next.index
+    inTorrentWithInfoHash:_playingInfoHash
+                headBytes:kPrebufferHeadBytes
+                tailBytes:kPrebufferTailBytes
+            withinSeconds:remaining];
+    NSLog(@"VLCTorrentPlaybackCoordinator: up next is file %ld%@", (long)next.index,
+          fetching ? @"" : @" (evicted earlier; fetched at the handover)");
+
+    if ([playback.delegate respondsToSelector:@selector(showStatusMessage:)]) {
+        [playback.delegate showStatusMessage:[NSString stringWithFormat:
+            NSLocalizedString(@"Up next: %@", nil), next.name.stringByDeletingPathExtension]];
+    }
+}
+
+- (nullable VLCTorrentFile *)fileAfterIndex:(NSInteger)index
+                      inTorrentWithInfoHash:(NSString *)infoHash
+{
+    NSArray<VLCTorrentFile *> *ordered = [VLCTorrentService.sharedService
+        playableFilesInPlaybackOrderForTorrentWithInfoHash:infoHash];
+    for (NSUInteger position = 0; position + 1 < ordered.count; position++) {
+        if (ordered[position].index == index) {
+            return ordered[position + 1];
+        }
+    }
+    return nil;
 }
 
 #pragma mark - UI

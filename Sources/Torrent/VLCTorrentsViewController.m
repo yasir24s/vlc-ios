@@ -4,6 +4,8 @@
 
 #import "VLCTorrentsViewController.h"
 
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+
 #import "VLCTorrentFilesViewController.h"
 #import "VLCTorrentPlaybackCoordinator.h"
 #import "VLCTorrentLibrary.h"
@@ -68,12 +70,18 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 
 #pragma mark - Controller
 
-@interface VLCTorrentsViewController () <UITableViewDataSource, UITableViewDelegate>
+@interface VLCTorrentsViewController () <UITableViewDataSource, UITableViewDelegate
+#if !TARGET_OS_TV
+    , UIDocumentPickerDelegate
+#endif
+>
 @property (nonatomic) UITableView *tableView;
 @property (nonatomic) UILabel *emptyLabel;
 @property (nonatomic) NSArray<VLCTorrentInfo *> *torrents;
 @property (nonatomic) NSArray<VLCTorrentBookmark *> *saved;
 @property (nonatomic) NSTimer *refreshTimer;
+/// Set when the list changed shape while a swipe was open.
+@property (nonatomic) BOOL reloadWhenEditingEnds;
 @end
 
 @implementation VLCTorrentsViewController
@@ -173,12 +181,12 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 
 - (void)refresh
 {
-    self.torrents = [VLCTorrentService.sharedService allTorrents];
+    NSArray<VLCTorrentInfo *> *torrents = [VLCTorrentService.sharedService allTorrents];
 
     // Anything already running is shown in the active section, so hide its
     // saved twin rather than listing the same torrent twice.
     NSMutableSet<NSString *> *activeHashes = [NSMutableSet set];
-    for (VLCTorrentInfo *info in self.torrents) {
+    for (VLCTorrentInfo *info in torrents) {
         [activeHashes addObject:info.infoHash.lowercaseString];
     }
     NSMutableArray<VLCTorrentBookmark *> *saved = [NSMutableArray array];
@@ -187,22 +195,34 @@ static NSTimeInterval const kRefreshInterval = 1.0;
             [saved addObject:bookmark];
         }
     }
+
+    BOOL const sameShape = self.tableView.numberOfSections == 2 &&
+        [self.tableView numberOfRowsInSection:0] == (NSInteger)torrents.count &&
+        [self.tableView numberOfRowsInSection:1] == (NSInteger)saved.count;
+
+    // Showing a swipe's actions puts the table in editing mode, and a full
+    // reload snaps the swipe shut. This used to reload on exactly that
+    // condition, once a second, so a swipe closed before it could be tapped.
+    // A change of shape now waits for the swipe to close -- and so do the new
+    // arrays, or the data source would shrink under rows still on screen.
+    if (!sameShape && self.tableView.isEditing) {
+        self.reloadWhenEditingEnds = YES;
+        return;
+    }
+
+    self.torrents = torrents;
     self.saved = saved;
+    self.emptyLabel.hidden = torrents.count > 0 || saved.count > 0;
 
-    self.emptyLabel.hidden = self.torrents.count > 0 || self.saved.count > 0;
-
-    // Reload visible rows in place so the table doesn't fight the user's
-    // scrolling or dismiss a swipe action every second.
-    if (self.tableView.numberOfSections == 2 &&
-        [self.tableView numberOfRowsInSection:0] == (NSInteger)self.torrents.count &&
-        [self.tableView numberOfRowsInSection:1] == (NSInteger)self.saved.count &&
-        !self.tableView.isEditing) {
+    if (sameShape) {
+        // Update visible cells in place, which an open swipe survives.
         for (NSIndexPath *indexPath in self.tableView.indexPathsForVisibleRows) {
-            if (indexPath.section != 0 || (NSUInteger)indexPath.row >= self.torrents.count) {
-                continue;
+            UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:indexPath];
+            if (indexPath.section == 0 && (NSUInteger)indexPath.row < torrents.count) {
+                [(VLCTorrentCell *)cell applyInfo:torrents[indexPath.row]];
+            } else if (indexPath.section == 1 && (NSUInteger)indexPath.row < saved.count) {
+                [self configureSavedCell:cell withBookmark:saved[indexPath.row]];
             }
-            VLCTorrentCell *cell = (VLCTorrentCell *)[self.tableView cellForRowAtIndexPath:indexPath];
-            [cell applyInfo:self.torrents[indexPath.row]];
         }
         return;
     }
@@ -245,12 +265,44 @@ static NSTimeInterval const kRefreshInterval = 1.0;
                                             handler:^(UIAlertAction *action) {
         [weakSelf handleMagnet:alert.textFields.firstObject.text stream:NO];
     }]];
+    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Open .torrent File\u2026", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        [weakSelf pickTorrentFile];
+    }]];
 #endif
     [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", nil)
                                               style:UIAlertActionStyleCancel
                                             handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
 }
+
+#if !TARGET_OS_TV
+- (void)pickTorrentFile
+{
+    UTType *torrent = [UTType typeWithIdentifier:@"org.bittorrent.torrent"]
+        ?: [UTType typeWithFilenameExtension:@"torrent"];
+    // asCopy hands back a file of our own, so no security scope is involved.
+    UIDocumentPickerViewController *picker = [[UIDocumentPickerViewController alloc]
+        initForOpeningContentTypes:torrent ? @[torrent] : @[UTTypeData]
+                            asCopy:YES];
+    picker.delegate = self;
+    picker.allowsMultipleSelection = NO;
+    [self presentViewController:picker animated:YES completion:nil];
+}
+
+- (void)documentPicker:(UIDocumentPickerViewController *)controller
+    didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls
+{
+    NSURL *url = urls.firstObject;
+    if (!url) {
+        return;
+    }
+    [[VLCTorrentPlaybackCoordinator sharedCoordinator] openTorrentFileAtURL:url
+                                                       presentingController:self];
+    [self refresh];
+}
+#endif
 
 - (void)handleMagnet:(NSString *)magnet stream:(BOOL)stream
 {
@@ -331,7 +383,7 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 
 #pragma mark - Saved torrents
 
-- (void)openBookmark:(VLCTorrentBookmark *)bookmark
+- (void)openBookmark:(VLCTorrentBookmark *)bookmark fromView:(nullable UIView *)view
 {
 #if TARGET_OS_TV
     UIAlertControllerStyle const style = UIAlertControllerStyleAlert;
@@ -358,13 +410,16 @@ static NSTimeInterval const kRefreshInterval = 1.0;
         [weakSelf handleMagnet:bookmark.magnetURI stream:NO];
     }]];
 #endif
+    // tvOS has no swipe actions, so this sheet is its only way to delete.
+    [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Delete\u2026", nil)
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(UIAlertAction *action) {
+        [weakSelf confirmDeletionOfBookmark:bookmark fromView:view];
+    }]];
     [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", nil)
                                               style:UIAlertActionStyleCancel
                                             handler:nil]];
-
-#if !TARGET_OS_TV
-    sheet.popoverPresentationController.sourceView = self.tableView;
-#endif
+    [self anchorSheet:sheet toView:view];
     [self presentViewController:sheet animated:YES completion:nil];
 }
 
@@ -438,7 +493,14 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"SavedCell"
                                                             forIndexPath:indexPath];
-    VLCTorrentBookmark *bookmark = self.saved[indexPath.row];
+    [self configureSavedCell:cell withBookmark:self.saved[indexPath.row]];
+    return cell;
+}
+
+/// Shared by cellForRow and the in-place refresh, so a rename shows straight
+/// away instead of waiting for the next full reload.
+- (void)configureSavedCell:(UITableViewCell *)cell withBookmark:(VLCTorrentBookmark *)bookmark
+{
     UIListContentConfiguration *content = [UIListContentConfiguration subtitleCellConfiguration];
     content.text = bookmark.name;
     content.image = [UIImage systemImageNamed:@"bookmark"];
@@ -451,7 +513,6 @@ static NSTimeInterval const kRefreshInterval = 1.0;
     }
     cell.contentConfiguration = content;
     cell.accessoryType = UITableViewCellAccessoryNone;
-    return cell;
 }
 
 #pragma mark - UITableViewDelegate
@@ -461,7 +522,8 @@ static NSTimeInterval const kRefreshInterval = 1.0;
     [tableView deselectRowAtIndexPath:indexPath animated:YES];
 
     if (indexPath.section == 1) {
-        [self openBookmark:self.saved[indexPath.row]];
+        [self openBookmark:self.saved[indexPath.row]
+                  fromView:[tableView cellForRowAtIndexPath:indexPath]];
         return;
     }
 
@@ -488,15 +550,19 @@ static NSTimeInterval const kRefreshInterval = 1.0;
         VLCTorrentBookmark *bookmark = self.saved[indexPath.row];
         __weak VLCTorrentsViewController *weakSelf = self;
 
-        UIContextualAction *forget = [UIContextualAction
-            contextualActionWithStyle:UIContextualActionStyleDestructive
-                                title:NSLocalizedString(@"Forget", nil)
+        UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
+        // Normal style, painted red, rather than destructive: a destructive
+        // action completed with YES makes the table delete the row itself, and
+        // nothing has been deleted until the user answers the question below.
+        UIContextualAction *deleteAction = [UIContextualAction
+            contextualActionWithStyle:UIContextualActionStyleNormal
+                                title:NSLocalizedString(@"Delete", nil)
                               handler:^(UIContextualAction *action, UIView *view,
                                         void (^completion)(BOOL)) {
-            [VLCTorrentLibrary.sharedLibrary removeBookmark:bookmark];
-            [weakSelf refresh];
             completion(YES);
+            [weakSelf confirmDeletionOfBookmark:bookmark fromView:cell];
         }];
+        deleteAction.backgroundColor = UIColor.systemRedColor;
 
         UIContextualAction *rename = [UIContextualAction
             contextualActionWithStyle:UIContextualActionStyleNormal
@@ -518,20 +584,23 @@ static NSTimeInterval const kRefreshInterval = 1.0;
         }];
         copy.backgroundColor = UIColor.systemGrayColor;
 
-        return [UISwipeActionsConfiguration configurationWithActions:@[forget, rename, copy]];
+        return [UISwipeActionsConfiguration configurationWithActions:@[deleteAction, rename, copy]];
     }
 
     VLCTorrentInfo *info = self.torrents[indexPath.row];
     VLCTorrentService *service = VLCTorrentService.sharedService;
     __weak VLCTorrentsViewController *weakSelf = self;
 
+    UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
     UIContextualAction *remove = [UIContextualAction
-        contextualActionWithStyle:UIContextualActionStyleDestructive
+        contextualActionWithStyle:UIContextualActionStyleNormal
                             title:NSLocalizedString(@"Remove", nil)
                           handler:^(UIContextualAction *action, UIView *view,
                                     void (^completion)(BOOL)) {
-        [weakSelf confirmRemovalOfTorrent:info completion:completion];
+        completion(YES);
+        [weakSelf confirmRemovalOfTorrent:info fromView:cell];
     }];
+    remove.backgroundColor = UIColor.systemRedColor;
 
     BOOL const isPaused = info.state == VLCTorrentStatePaused;
     UIContextualAction *toggle = [UIContextualAction
@@ -556,8 +625,7 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 
 /// Deleting downloaded media is destructive and easy to do by accident on a
 /// swipe, so the files are only removed when explicitly chosen.
-- (void)confirmRemovalOfTorrent:(VLCTorrentInfo *)info
-                     completion:(void (^)(BOOL))completion
+- (void)confirmRemovalOfTorrent:(VLCTorrentInfo *)info fromView:(nullable UIView *)view
 {
     VLCTorrentService *service = VLCTorrentService.sharedService;
 #if TARGET_OS_TV
@@ -567,7 +635,7 @@ static NSTimeInterval const kRefreshInterval = 1.0;
 #endif
     UIAlertController *sheet = [UIAlertController
         alertControllerWithTitle:info.name
-                         message:NSLocalizedString(@"Remove this torrent?", nil)
+                         message:NSLocalizedString(@"Stops it on this device. Its saved link stays in the list.", nil)
                   preferredStyle:removeStyle];
 
     __weak VLCTorrentsViewController *weakSelf = self;
@@ -576,25 +644,86 @@ static NSTimeInterval const kRefreshInterval = 1.0;
                                             handler:^(UIAlertAction *action) {
         [service removeTorrentWithInfoHash:info.infoHash deletingFiles:NO];
         [weakSelf refresh];
-        completion(YES);
     }]];
     [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Remove and delete files", nil)
                                               style:UIAlertActionStyleDestructive
                                             handler:^(UIAlertAction *action) {
         [service removeTorrentWithInfoHash:info.infoHash deletingFiles:YES];
         [weakSelf refresh];
-        completion(YES);
     }]];
     [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", nil)
                                               style:UIAlertActionStyleCancel
-                                            handler:^(UIAlertAction *action) {
-        completion(NO);
-    }]];
-
-#if !TARGET_OS_TV
-    sheet.popoverPresentationController.sourceView = self.tableView;
-#endif
+                                            handler:nil]];
+    [self anchorSheet:sheet toView:view];
     [self presentViewController:sheet animated:YES completion:nil];
+}
+
+/// The library is shared through iCloud now, so where a saved torrent goes
+/// away from is a real choice, and it is asked rather than assumed.
+- (void)confirmDeletionOfBookmark:(VLCTorrentBookmark *)bookmark fromView:(nullable UIView *)view
+{
+#if TARGET_OS_TV
+    UIAlertControllerStyle const style = UIAlertControllerStyleAlert;
+#else
+    UIAlertControllerStyle const style = UIAlertControllerStyleActionSheet;
+#endif
+    // A magnet with no info hash cannot be keyed in the shared store, so it
+    // only ever existed on this device.
+    BOOL const shareable = bookmark.infoHash != nil;
+    UIAlertController *sheet = [UIAlertController
+        alertControllerWithTitle:[NSString stringWithFormat:NSLocalizedString(@"Delete \u201c%@\u201d?", nil),
+                                                             bookmark.name]
+                         message:shareable
+            ? NSLocalizedString(@"This device only: your other devices keep it.\nAll devices: it goes from every device signed in to your iCloud account.", nil)
+            : NSLocalizedString(@"This link was never shared with your other devices.", nil)
+                  preferredStyle:style];
+
+    __weak VLCTorrentsViewController *weakSelf = self;
+    VLCTorrentLibrary *library = VLCTorrentLibrary.sharedLibrary;
+    [sheet addAction:[UIAlertAction actionWithTitle:shareable
+                                                    ? NSLocalizedString(@"Delete on This Device", nil)
+                                                    : NSLocalizedString(@"Delete", nil)
+                                              style:UIAlertActionStyleDestructive
+                                            handler:^(UIAlertAction *action) {
+        [library removeBookmark:bookmark everywhere:NO];
+        [weakSelf refresh];
+    }]];
+    if (shareable) {
+        [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Delete on All Devices", nil)
+                                                  style:UIAlertActionStyleDestructive
+                                                handler:^(UIAlertAction *action) {
+            [library removeBookmark:bookmark everywhere:YES];
+            [weakSelf refresh];
+        }]];
+    }
+    [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Cancel", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:nil]];
+    [self anchorSheet:sheet toView:view];
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+
+/// An action sheet on iPad is a popover, and one with a source view but no
+/// source rect points at that view's top-left corner, nowhere near the row.
+- (void)anchorSheet:(UIAlertController *)sheet toView:(nullable UIView *)view
+{
+#if !TARGET_OS_TV
+    UIView *anchor = view ?: self.tableView;
+    sheet.popoverPresentationController.sourceView = anchor;
+    sheet.popoverPresentationController.sourceRect = anchor.bounds;
+#endif
+}
+
+- (void)tableView:(UITableView *)tableView didEndEditingRowAtIndexPath:(nullable NSIndexPath *)indexPath
+{
+    if (!self.reloadWhenEditingEnds) {
+        return;
+    }
+    self.reloadWhenEditingEnds = NO;
+    // Next turn of the run loop, once the table has left editing mode.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self refresh];
+    });
 }
 
 @end

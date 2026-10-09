@@ -1,5 +1,5 @@
 /*****************************************************************************
- * VLCTorrentURLHandler.swift: routes magnet: links into the torrent engine
+ * VLCTorrentURLHandler.swift: routes magnet links and .torrent files into the torrent engine
  *****************************************************************************/
 
 import Foundation
@@ -18,7 +18,9 @@ class VLCTorrentURLHandler: NSObject, VLCURLHandler {
     @objc func performOpen(url: URL, options: [UIApplication.OpenURLOptionsKey: AnyObject]) -> Bool {
         let coordinator = VLCTorrentPlaybackCoordinator.shared
         if VLCTorrentService.isTorrentFile(url) {
-            coordinator.streamTorrentFile(atPath: url.path, presenting: nil)
+            // Not url.path straight to libtorrent: with open-in-place this is a
+            // security-scoped URL, unreadable until access is requested.
+            coordinator.openTorrentFile(at: url, presenting: nil)
         } else {
             coordinator.streamMagnet(url.absoluteString, presenting: nil)
         }
