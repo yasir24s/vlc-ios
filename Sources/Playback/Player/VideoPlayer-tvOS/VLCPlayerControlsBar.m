@@ -13,11 +13,13 @@
 #import "VLCPlayerInlineMenuViewController.h"
 #import "VLCPlaybackInfoSubtitlesFetcherViewController.h"
 #import "VLCMetadata.h"
+#import "VLCTorrentHTTPServer.h"
 #import "VLC-Swift.h"
 
 @interface VLCPlayerControlsBar () <VLCPlayerInlineMenuDelegate>
 {
     NSArray<UIButton *> *_controlButtons;
+    UIButton *_nextButton;
     UIButton *_subtitlesButton;
     UIButton *_aspectRatioButton;
     UIButton *_audioButton;
@@ -38,6 +40,9 @@
         self.alignment = UIStackViewAlignmentFill;
         self.spacing = 20.0;
 
+        // The Siri Remote had no way to move to the next item at all: only a
+        // game controller's next button reached -next.
+        _nextButton = [self makeControlButtonWithImageName:@"forward.end.fill" accessibilityLabel:NSLocalizedString(@"NEXT_BUTTON", nil) action:@selector(nextButtonPressed)];
         _subtitlesButton = [self makeControlButtonWithImageName:@"captions.bubble" accessibilityLabel:NSLocalizedString(@"SUBTITLES", nil) action:@selector(subtitlesButtonPressed)];
         _aspectRatioButton = [self makeControlButtonWithImageName:@"aspectratio" accessibilityLabel:NSLocalizedString(@"VIDEO_ASPECT_RATIO_BUTTON", nil) action:@selector(aspectRatioButtonPressed)];
         _audioButton = [self makeControlButtonWithImageName:@"waveform" accessibilityLabel:NSLocalizedString(@"AUDIO", nil) action:@selector(audioButtonPressed)];
@@ -45,7 +50,9 @@
         _speedButton = [self makeControlButtonWithImageName:@"gauge" accessibilityLabel:NSLocalizedString(@"PLAYBACK_SPEED", nil) action:@selector(speedButtonPressed)];
         _queueButton = [self makeControlButtonWithImageName:@"list.bullet.rectangle" accessibilityLabel:NSLocalizedString(@"QUEUE_LABEL", nil) action:@selector(queueButtonPressed)];
         _infoButton = [self makeControlButtonWithImageName:@"info.circle" accessibilityLabel:NSLocalizedString(@"MEDIA_INFO", nil) action:@selector(infoButtonPressed)];
-        _controlButtons = @[_subtitlesButton, _aspectRatioButton, _audioButton, _chaptersButton, _speedButton, _queueButton, _infoButton];
+        // First, so it takes focus on the way down: between episodes it is the
+        // likeliest thing to want, and it becomes swipe down, click.
+        _controlButtons = @[_nextButton, _subtitlesButton, _aspectRatioButton, _audioButton, _chaptersButton, _speedButton, _queueButton, _infoButton];
 
         for (UIButton *button in _controlButtons) {
             [self addArrangedSubview:button];
@@ -62,6 +69,29 @@
     _chaptersButton.hidden = [vpc numberOfChaptersForCurrentTitle] <= 1;
     _subtitlesButton.hidden = vpc.metadata.isAudioOnly;
     _aspectRatioButton.hidden = vpc.metadata.isAudioOnly;
+
+    _nextButton.hidden = ![self hasNextItem];
+    _nextButton.accessibilityLabel =
+        [VLCTorrentHTTPServer parseStreamURL:vpc.currentlyPlayingMedia.url infoHash:NULL fileIndex:NULL]
+            ? NSLocalizedString(@"Next Episode", nil)
+            : NSLocalizedString(@"NEXT_BUTTON", nil);
+}
+
+/// Only when there is a real next item. With a single one, -next does not
+/// advance -- it skips forward by the seek length -- which a button labelled
+/// Next would do silently.
+- (BOOL)hasNextItem
+{
+    VLCPlaybackService *vpc = [VLCPlaybackService sharedInstance];
+    VLCMediaList *list = vpc.mediaList;
+    if (list.count < 2) {
+        return NO;
+    }
+    if (vpc.repeatMode == VLCRepeatAllItems) {
+        return YES;
+    }
+    NSInteger const index = [list indexOfMedia:vpc.currentlyPlayingMedia];
+    return index != NSNotFound && index + 1 < (NSInteger)list.count;
 }
 
 - (UIButton *)makeControlButtonWithImageName:(NSString *)imageName
@@ -114,6 +144,11 @@
 }
 
 #pragma mark - actions
+
+- (void)nextButtonPressed
+{
+    [[VLCPlaybackService sharedInstance] next];
+}
 
 - (void)subtitlesButtonPressed
 {

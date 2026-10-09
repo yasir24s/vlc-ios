@@ -136,8 +136,80 @@ static NSInteger const kMaximumEpisodesAhead = 10;
     [self.tableView reloadData];
 #if !TARGET_OS_TV
     [self updatePredownloadMenu];
+#else
+    [self updatePreloadHeader];
 #endif
 }
+
+#if TARGET_OS_TV
+/// tvOS keeps nothing durable, so the window there is one episode: enough for
+/// the next to start straight away, and gone once passed. A focusable button
+/// in the header rather than a row, so the file rows keep their numbering.
+- (void)updatePreloadHeader
+{
+    if (![VLCTorrentService.sharedService isEpisodicTorrentWithInfoHash:self.infoHash]) {
+        self.tableView.tableHeaderView = nil;
+        return;
+    }
+    NSInteger const count = [VLCTorrentService.sharedService
+        predownloadCountForTorrentWithInfoHash:self.infoHash];
+    // NSNotFound means never asked, which is off -- and it is larger than 0.
+    BOOL const preloading = count != NSNotFound && count > 0;
+
+    UIButton *button = [UIButton buttonWithType:UIButtonTypeSystem];
+    [button setTitle:preloading ? NSLocalizedString(@"Preload Next Episode: On", nil)
+                                : NSLocalizedString(@"Preload Next Episode: Off", nil)
+            forState:UIControlStateNormal];
+    [button addTarget:self action:@selector(togglePreload)
+     forControlEvents:UIControlEventPrimaryActionTriggered];
+    [button sizeToFit];
+
+    UIView *header = [[UIView alloc] initWithFrame:CGRectMake(0, 0, CGRectGetWidth(self.tableView.bounds),
+                                                              CGRectGetHeight(button.bounds) + 40)];
+    button.frame = CGRectMake(20, 20, CGRectGetWidth(button.bounds) + 40, CGRectGetHeight(button.bounds));
+    [header addSubview:button];
+    self.tableView.tableHeaderView = header;
+}
+
+- (void)togglePreload
+{
+    NSInteger const count = [VLCTorrentService.sharedService
+        predownloadCountForTorrentWithInfoHash:self.infoHash];
+    BOOL const preloading = count != NSNotFound && count > 0;
+    [VLCTorrentService.sharedService setPredownloadCount:preloading ? 0 : 1
+                                  forTorrentWithInfoHash:self.infoHash];
+    [self reload];
+}
+
+/// The Apple TV's version of the question: one episode, yes or no.
+- (void)askAboutPreloadingThenStream:(NSInteger)fileIndex
+{
+    UIAlertController *alert = [UIAlertController
+        alertControllerWithTitle:NSLocalizedString(@"Preload the next episode?", nil)
+                         message:NSLocalizedString(@"This looks like a TV show. VLCTorrent can download the next episode while you watch this one, so it starts straight away. It is removed once you have moved past it.", nil)
+                  preferredStyle:UIAlertControllerStyleAlert];
+    __weak VLCTorrentFilesViewController *weakSelf = self;
+    NSString *infoHash = self.infoHash;
+    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Preload Next Episode", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        [VLCTorrentService.sharedService setPredownloadCount:1 forTorrentWithInfoHash:infoHash];
+        [weakSelf startStreamingFileIndex:fileIndex];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Never for This Show", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        [VLCTorrentService.sharedService setPredownloadCount:0 forTorrentWithInfoHash:infoHash];
+        [weakSelf startStreamingFileIndex:fileIndex];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Not Now", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:^(UIAlertAction *action) {
+        [weakSelf startStreamingFileIndex:fileIndex];
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+#endif
 
 #pragma mark - UITableViewDataSource
 
@@ -302,14 +374,16 @@ static NSInteger const kMaximumEpisodesAhead = 10;
 
 - (void)streamFileIndex:(NSInteger)fileIndex
 {
-#if !TARGET_OS_TV
     VLCTorrentService *service = VLCTorrentService.sharedService;
     if ([service isEpisodicTorrentWithInfoHash:self.infoHash] &&
         [service predownloadCountForTorrentWithInfoHash:self.infoHash] == NSNotFound) {
+#if TARGET_OS_TV
+        [self askAboutPreloadingThenStream:fileIndex];
+#else
         [self askAboutPredownloadingThenStream:fileIndex];
+#endif
         return;
     }
-#endif
     [self startStreamingFileIndex:fileIndex];
 }
 

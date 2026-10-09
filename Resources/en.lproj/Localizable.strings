@@ -969,3 +969,11 @@
 "%ld Episodes Ahead" = "%ld Episodes Ahead";
 "1 Episode Ahead" = "1 Episode Ahead";
 "This looks like a TV show. Choose how many upcoming episodes to keep downloaded on Wi-Fi while you watch. Each is removed once you have moved past it." = "This looks like a TV show. Choose how many upcoming episodes to keep downloaded on Wi-Fi while you watch. Each is removed once you have moved past it.";
+
+/* New strings */
+"Next Episode" = "Next Episode";
+"Preload Next Episode" = "Preload Next Episode";
+"Preload Next Episode: Off" = "Preload Next Episode: Off";
+"Preload Next Episode: On" = "Preload Next Episode: On";
+"Preload the next episode?" = "Preload the next episode?";
+"This looks like a TV show. VLCTorrent can download the next episode while you watch this one, so it starts straight away. It is removed once you have moved past it." = "This looks like a TV show. VLCTorrent can download the next episode while you watch this one, so it starts straight away. It is removed once you have moved past it.";
