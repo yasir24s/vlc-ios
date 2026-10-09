@@ -69,6 +69,54 @@
     [self reload];
 }
 
+#if !TARGET_OS_TV
+/// How far ahead to stay, changeable any time -- otherwise an answer given at
+/// the prompt, "never" included, could not be taken back.
+- (void)updatePredownloadMenu
+{
+    VLCTorrentService *service = VLCTorrentService.sharedService;
+    if (self.presentedAsChooser || ![service isEpisodicTorrentWithInfoHash:self.infoHash]) {
+        return;
+    }
+    NSInteger const current = [service predownloadCountForTorrentWithInfoHash:self.infoHash];
+    __weak VLCTorrentFilesViewController *weakSelf = self;
+    NSMutableArray<UIMenuElement *> *choices = [NSMutableArray array];
+    for (NSNumber *count in @[@10, @5, @3]) {
+        UIAction *action = [UIAction actionWithTitle:[NSString stringWithFormat:
+                                NSLocalizedString(@"Keep %@ Episodes Ahead", nil), count]
+                                               image:nil
+                                          identifier:nil
+                                             handler:^(UIAction *chosen) {
+            [weakSelf setPredownloadCount:count.integerValue];
+        }];
+        action.state = current == count.integerValue ? UIMenuElementStateOn : UIMenuElementStateOff;
+        [choices addObject:action];
+    }
+    UIAction *off = [UIAction actionWithTitle:NSLocalizedString(@"Off", nil)
+                                        image:nil
+                                   identifier:nil
+                                      handler:^(UIAction *chosen) {
+        [weakSelf setPredownloadCount:0];
+    }];
+    off.attributes = UIMenuElementAttributesDestructive;
+    off.state = (current == 0 || current == NSNotFound) ? UIMenuElementStateOn : UIMenuElementStateOff;
+    [choices addObject:off];
+
+    UIMenu *menu = [UIMenu menuWithTitle:NSLocalizedString(@"Downloads upcoming episodes on Wi-Fi while you watch, and removes each once you have moved past it. Off removes any already downloaded ahead.", nil)
+                                children:choices];
+    self.navigationItem.rightBarButtonItem =
+        [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"arrow.down.circle"]
+                                          menu:menu];
+}
+
+- (void)setPredownloadCount:(NSInteger)count
+{
+    [VLCTorrentService.sharedService setPredownloadCount:count forTorrentWithInfoHash:self.infoHash];
+    [self updatePredownloadMenu];
+    [self reload];
+}
+#endif
+
 - (void)dismissChooser
 {
     [self dismissViewControllerAnimated:YES completion:nil];
@@ -78,6 +126,9 @@
 {
     self.files = [VLCTorrentService.sharedService filesForTorrentWithInfoHash:self.infoHash];
     [self.tableView reloadData];
+#if !TARGET_OS_TV
+    [self updatePredownloadMenu];
+#endif
 }
 
 #pragma mark - UITableViewDataSource
@@ -142,6 +193,9 @@
     // Which files cost disk is the whole point now, so say it plainly.
     VLCTorrentService *service = VLCTorrentService.sharedService;
     NSString *size = [self.byteFormatter stringFromByteCount:file.size];
+    // The generic icon first, so a state icon below can replace it. It used to
+    // be the other way round, and kept or streaming files never showed it.
+    content.image = [UIImage systemImageNamed:file.isPlayable ? @"play.rectangle" : @"doc"];
     if ([service isFileKept:file.index inTorrentWithInfoHash:self.infoHash]) {
         content.secondaryText = [NSString stringWithFormat:
             NSLocalizedString(@"%@ - kept", nil), size];
@@ -150,13 +204,13 @@
         content.secondaryText = [NSString stringWithFormat:
             NSLocalizedString(@"%@ - streaming, not kept", nil), size];
         content.image = [UIImage systemImageNamed:@"play.circle.fill"];
+    } else if (file.isWanted) {
+        // Wanted without being kept or streamed: inside the window ahead.
+        content.secondaryText = [NSString stringWithFormat:
+            NSLocalizedString(@"%@ - downloading ahead", nil), size];
+        content.image = [UIImage systemImageNamed:@"arrow.down.circle"];
     } else {
         content.secondaryText = size;
-    }
-    if (file.isPlayable) {
-        content.image = [UIImage systemImageNamed:@"play.rectangle"];
-    } else {
-        content.image = [UIImage systemImageNamed:@"doc"];
     }
     cell.contentConfiguration = content;
     cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
@@ -239,6 +293,52 @@
 }
 
 - (void)streamFileIndex:(NSInteger)fileIndex
+{
+#if !TARGET_OS_TV
+    VLCTorrentService *service = VLCTorrentService.sharedService;
+    if ([service isEpisodicTorrentWithInfoHash:self.infoHash] &&
+        [service predownloadCountForTorrentWithInfoHash:self.infoHash] == NSNotFound) {
+        [self askAboutPredownloadingThenStream:fileIndex];
+        return;
+    }
+#endif
+    [self startStreamingFileIndex:fileIndex];
+}
+
+#if !TARGET_OS_TV
+/// Asked once per show, before the first episode, because it is a real cost in
+/// disk and data. "Not now" asks again next time; the other two are kept, and
+/// the toolbar menu changes them later.
+- (void)askAboutPredownloadingThenStream:(NSInteger)fileIndex
+{
+    UIAlertController *alert = [UIAlertController
+        alertControllerWithTitle:NSLocalizedString(@"Download ahead while you watch?", nil)
+                         message:NSLocalizedString(@"This looks like a TV show. VLCTorrent can keep the next 10 episodes downloaded on Wi-Fi while you watch, and remove each one once you have moved past it.", nil)
+                  preferredStyle:UIAlertControllerStyleAlert];
+    __weak VLCTorrentFilesViewController *weakSelf = self;
+    NSString *infoHash = self.infoHash;
+    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Download Next 10", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        [VLCTorrentService.sharedService setPredownloadCount:10 forTorrentWithInfoHash:infoHash];
+        [weakSelf startStreamingFileIndex:fileIndex];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Not Now", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:^(UIAlertAction *action) {
+        [weakSelf startStreamingFileIndex:fileIndex];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Never for This Show", nil)
+                                              style:UIAlertActionStyleDefault
+                                            handler:^(UIAlertAction *action) {
+        [VLCTorrentService.sharedService setPredownloadCount:0 forTorrentWithInfoHash:infoHash];
+        [weakSelf startStreamingFileIndex:fileIndex];
+    }]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+#endif
+
+- (void)startStreamingFileIndex:(NSInteger)fileIndex
 {
     NSString *infoHash = self.infoHash;
     VLCTorrentPlaybackCoordinator *coordinator = VLCTorrentPlaybackCoordinator.sharedCoordinator;

@@ -24,6 +24,7 @@
 #import "VLCAppSceneDelegate.h"
 #import "VLCMLMedia+isWatched.h"
 #import <WatchConnectivity/WatchConnectivity.h>
+#import "VLCTorrentPlaybackCoordinator.h"
 
 @interface VLCAppDelegate ()
 {
@@ -154,6 +155,9 @@
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
 #if TARGET_OS_IOS
+    // Before launch finishes, or a background pre-download task iOS delivers
+    // on relaunch arrives with no handler registered.
+    [VLCTorrentPlaybackCoordinator registerBackgroundTasks];
     if (@available(iOS 13.0, *)) {
         APLog(@"Using Scene flow");
     } else {

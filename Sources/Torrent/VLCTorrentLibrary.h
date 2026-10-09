@@ -59,6 +59,15 @@ extern NSNotificationName const VLCTorrentLibraryDidChangeNotification;
 /// file list, so opening from it does not wait on the swarm for metadata.
 - (nullable NSString *)torrentFilePathForInfoHash:(NSString *)infoHash;
 
+/// The audio and subtitle choice last made while watching this torrent, so
+/// every episode of it opens the same way. Shared through iCloud with the
+/// library. Keys: "audio" and "subtitle" (a language code, "off", or empty for
+/// an untagged track), "audioName" and "subtitleName" (the track's own name,
+/// to tell apart two tracks in one language, or find one with no tag).
+- (nullable NSDictionary<NSString *, NSString *> *)trackPreferencesForInfoHash:(NSString *)infoHash;
+- (void)setTrackPreferences:(NSDictionary<NSString *, NSString *> *)preferences
+                forInfoHash:(NSString *)infoHash;
+
 /// Pulls real torrent names in once metadata has arrived for them.
 - (void)refreshNamesFromActiveTorrents;
 

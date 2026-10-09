@@ -26,6 +26,14 @@ extern NSString *const VLCPlaybackServicePlaybackPositionUpdated;
 extern NSString *const VLCPlaybackServicePlaybackModeUpdated;
 extern NSString *const VLCPlaybackServiceShuffleModeUpdated;
 extern NSString *const VLCPlaybackServicePlaybackDidMoveOnToNextItem;
+/// Posted when the user picks or turns off an audio or primary subtitle track.
+/// userInfo: VLCPlaybackServiceTrackTypeKey (@"audio" or @"subtitle") and
+/// VLCPlaybackServiceTrackIndexKey (index into -audioTracks / -textTracks, or
+/// -1 for off). The index travels with it because libvlc applies a selection
+/// asynchronously, so reading back "selected" at once can see the old track.
+extern NSString *const VLCPlaybackServiceUserDidChangeTracks;
+extern NSString *const VLCPlaybackServiceTrackTypeKey;
+extern NSString *const VLCPlaybackServiceTrackIndexKey;
 extern NSString *const VLCLastPlaylistPlayedMedia;
 
 @class VLCPlaybackService;

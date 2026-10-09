@@ -56,6 +56,10 @@ std::string HashKey(lt::info_hash_t const &hashes)
     return out.str();
 }
 
+/// Episodes to keep downloaded past the one playing, per torrent. Local to the
+/// device: an Apple TV has nowhere durable to put them.
+static NSString *const kPredownloadCountsKey = @"VLCTorrentPredownloadCounts";
+
 struct Record {
     lt::torrent_handle handle;
     VLCTorrentMode mode = VLCTorrentModeDownload;
@@ -1113,6 +1117,16 @@ BOOL IsPlayableExtension(NSString *name)
     __block NSString *evictPath;
     __block BOOL needsRecheck = NO;
 
+    // Worked out before taking the queue: the playback order takes it itself.
+    NSInteger const ahead = [self predownloadCountForTorrentWithInfoHash:infoHash];
+    BOOL const predownloading = ahead != NSNotFound && ahead > 0;
+    BOOL inOrder = NO;
+    std::vector<int> const candidates = predownloading
+        ? [self predownloadCandidatesAfterFileIndex:fileIndex inTorrentWithInfoHash:infoHash
+                                              found:&inOrder]
+        : std::vector<int>();
+    size_t const windowSize = std::min(candidates.size(), static_cast<size_t>(predownloading ? ahead : 0));
+
     dispatch_sync(_queue, ^{
         auto found = _torrents.find(std::string(infoHash.UTF8String));
         if (found == _torrents.end() || !found->second.handle.is_valid()) {
@@ -1124,7 +1138,12 @@ BOOL IsPlayableExtension(NSString *name)
         // Moving on from a transient file discards it. Kept files are exempt,
         // and so is the file being opened.
         int const previous = record.streamingFile;
-        if (previous >= 0 && previous != index &&
+        // Jumping back can leave the episode just played inside the new
+        // window, where it is wanted again rather than finished with.
+        bool const previousStaysAhead =
+            std::find(candidates.begin(), candidates.begin() + windowSize, previous) !=
+            candidates.begin() + windowSize;
+        if (previous >= 0 && previous != index && !previousStaysAhead &&
             record.keptFiles.count(previous) == 0) {
             handle.file_priority(lt::file_index_t{previous}, lt::dont_download);
             evictPath = [self pathForFileIndex:previous handle:handle];
@@ -1161,7 +1180,231 @@ BOOL IsPlayableExtension(NSString *name)
             handle.force_recheck();
         }];
     }
+    // Only from an episode. A sample or an extra is not in the playback order,
+    // so nothing follows it -- and reconciling an empty window there would
+    // delete every episode downloaded ahead. The last episode is different: it
+    // is in the order, and clearing what is left after it is correct.
+    if (predownloading && inOrder) {
+        [self reconcilePredownloadWindow:candidates count:ahead inTorrentWithInfoHash:infoHash];
+    }
     [self postListDidChange];
+}
+
+#pragma mark - Pre-downloading
+
+- (BOOL)isEpisodicTorrentWithInfoHash:(NSString *)infoHash
+{
+    NSArray<VLCTorrentFile *> *playable =
+        [self playableFilesInPlaybackOrderForTorrentWithInfoHash:infoHash];
+    if (playable.count < 2) {
+        return NO;
+    }
+    static NSRegularExpression *episode;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        episode = [NSRegularExpression regularExpressionWithPattern:
+            @"\\bS\\d{1,2}[ ._-]?E\\d{1,3}\\b"                  // S01E02
+            @"|\\b\\d{1,2}x\\d{2,3}\\b"                          // 1x02
+            @"|\\b(?:E|Ep|Episode)[ ._-]?\\d{1,3}\\b"              // E02, Ep 2, Episode 2
+            @"|\\s-\\s\\d{2,3}(?:v\\d)?(?=[\\s.\\[(]|$)"     // anime: "Title - 02 [1080p]"
+                                                            options:NSRegularExpressionCaseInsensitive
+                                                              error:nil];
+    });
+    NSUInteger matches = 0;
+    for (VLCTorrentFile *file in playable) {
+        NSString *name = file.name;
+        if ([episode firstMatchInString:name options:0 range:NSMakeRange(0, name.length)]) {
+            matches++;
+        }
+    }
+    // Most of them rather than all: a batch often carries an OVA or a special
+    // named differently, and that should not stop a season counting as a show.
+    return matches * 2 >= playable.count;
+}
+
+- (NSInteger)predownloadCountForTorrentWithInfoHash:(NSString *)infoHash
+{
+    NSNumber *count = [[NSUserDefaults standardUserDefaults]
+        dictionaryForKey:kPredownloadCountsKey][infoHash.lowercaseString];
+    return count ? count.integerValue : NSNotFound;
+}
+
+- (void)setPredownloadCount:(NSInteger)count forTorrentWithInfoHash:(NSString *)infoHash
+{
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSMutableDictionary *counts = [[defaults dictionaryForKey:kPredownloadCountsKey] mutableCopy]
+        ?: [NSMutableDictionary dictionary];
+    counts[infoHash.lowercaseString] = @(MAX(count, (NSInteger)0));
+    [defaults setObject:counts forKey:kPredownloadCountsKey];
+
+    __block int streaming = -1;
+    dispatch_sync(_queue, ^{
+        auto found = _torrents.find(std::string(infoHash.UTF8String));
+        if (found != _torrents.end()) {
+            streaming = found->second.streamingFile;
+        }
+    });
+    if (streaming < 0) {
+        return; // nothing playing yet: the next pick applies it
+    }
+    BOOL inOrder = NO;
+    std::vector<int> const candidates = count > 0
+        ? [self predownloadCandidatesAfterFileIndex:streaming inTorrentWithInfoHash:infoHash
+                                              found:&inOrder]
+        : std::vector<int>();
+    // Turning it off always clears the window; turning it on needs an episode
+    // playing to count ahead from.
+    if (count > 0 && !inOrder) {
+        return;
+    }
+    [self reconcilePredownloadWindow:candidates count:MAX(count, (NSInteger)0)
+               inTorrentWithInfoHash:infoHash];
+    [self postListDidChange];
+}
+
+- (BOOL)hasPendingPredownloads
+{
+    NSDictionary *counts = [[NSUserDefaults standardUserDefaults] dictionaryForKey:kPredownloadCountsKey];
+    if (counts.count == 0) {
+        return NO;
+    }
+    __block BOOL pending = NO;
+    dispatch_sync(_queue, ^{
+        for (auto const &entry : _torrents) {
+            if ([counts[ToNSString(entry.first).lowercaseString] integerValue] <= 0 ||
+                !entry.second.handle.is_valid()) {
+                continue;
+            }
+            lt::torrent_status const status = entry.second.handle.status();
+            if (status.total_wanted_done < status.total_wanted) {
+                pending = YES;
+                break;
+            }
+        }
+    });
+    return pending;
+}
+
+/// The playable files after this one, in playback order. `found` says whether
+/// this one is in that order at all, which an empty result cannot: it is empty
+/// both after the last episode and for a file that is not an episode.
+- (std::vector<int>)predownloadCandidatesAfterFileIndex:(NSInteger)fileIndex
+                                  inTorrentWithInfoHash:(NSString *)infoHash
+                                                  found:(BOOL *)found
+{
+    std::vector<int> candidates;
+    BOOL after = NO;
+    for (VLCTorrentFile *file in
+         [self playableFilesInPlaybackOrderForTorrentWithInfoHash:infoHash]) {
+        if (after) {
+            candidates.push_back(static_cast<int>(file.index));
+        }
+        if (file.index == fileIndex) {
+            after = YES;
+        }
+    }
+    if (found) {
+        *found = after;
+    }
+    return candidates;
+}
+
+/// Brings everything around the file streaming into line with the window. The
+/// episodes in it are wanted, nearest first and within what the disk can take.
+/// Anything else still wanted that is neither kept nor streaming is left over
+/// from an earlier window -- watched, or skipped past -- and goes, like a stream
+/// the user has moved on from. No list of these is stored: libtorrent keeps
+/// file priorities in its resume data, so after a relaunch the leftovers are
+/// still recognisable by being wanted without being kept.
+- (void)reconcilePredownloadWindow:(std::vector<int> const &)candidates
+                             count:(NSInteger)count
+             inTorrentWithInfoHash:(NSString *)infoHash
+{
+    // Stay well clear of the disk guard, which pauses every torrent -- the
+    // episode on screen included -- once free space reaches its floor.
+    int64_t const budget = self.freeDiskBytes - 2 * self.minimumFreeBytes;
+    NSMutableArray<NSString *> *evict = [NSMutableArray array];
+    __block NSUInteger windowed = 0;
+
+    dispatch_sync(_queue, ^{
+        auto found = _torrents.find(std::string(infoHash.UTF8String));
+        if (found == _torrents.end() || !found->second.handle.is_valid()) {
+            return;
+        }
+        Record &record = found->second;
+        lt::torrent_handle const &handle = record.handle;
+        std::shared_ptr<const lt::torrent_info> info = handle.torrent_file();
+        if (!info) {
+            return;
+        }
+        lt::file_storage const &storage = info->layout();
+        std::vector<std::int64_t> progress;
+        handle.file_progress(progress, lt::torrent_handle::piece_granularity);
+        auto done = [&](int f) -> int64_t {
+            return f < static_cast<int>(progress.size()) ? progress[static_cast<size_t>(f)] : 0;
+        };
+
+        std::set<int> window;
+        int64_t needed = 0;
+        for (int f : candidates) {
+            if (static_cast<NSInteger>(window.size()) >= count) {
+                break;
+            }
+            // Kept files download in full anyway. An evicted one cannot be
+            // fetched again without a recheck, and that stops the whole torrent
+            // -- the episode playing too -- so it waits for its own handover.
+            if (f == record.streamingFile || record.keptFiles.count(f) > 0 ||
+                record.evictedFiles.count(f) > 0 || record.recheckingFiles.count(f) > 0) {
+                continue;
+            }
+            int64_t const remaining = storage.file_size(lt::file_index_t{f}) - done(f);
+            // Nearest first, so stop at the first that will not fit rather than
+            // skipping ahead to a smaller one further away.
+            if (needed + remaining > budget) {
+                break;
+            }
+            needed += remaining;
+            window.insert(f);
+        }
+
+        int rank = 0;
+        for (int f : candidates) {
+            if (window.count(f) == 0) {
+                continue;
+            }
+            // Below the streaming file's top priority, and nearer before further.
+            int const priority = std::max(1, 6 - rank++);
+            handle.file_priority(lt::file_index_t{f},
+                                 lt::download_priority_t{static_cast<std::uint8_t>(priority)});
+        }
+        windowed = window.size();
+
+        int const fileCount = storage.num_files();
+        for (int f = 0; f < fileCount; f++) {
+            if (window.count(f) > 0 || f == record.streamingFile || record.keptFiles.count(f) > 0) {
+                continue;
+            }
+            lt::file_index_t const file{f};
+            if (handle.file_priority(file) == lt::dont_download) {
+                continue;
+            }
+            handle.file_priority(file, lt::dont_download);
+            // Only data actually on disk makes libtorrent's have-state stale.
+            if (done(f) > 0) {
+                NSString *path = [self pathForFileIndex:f handle:handle];
+                if (path) {
+                    [evict addObject:path];
+                }
+                record.evictedFiles.insert(f);
+            }
+        }
+    });
+
+    for (NSString *path in evict) {
+        [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+    }
+    NSLog(@"VLCTorrentService: pre-download window %lu of %ld, %lu left over and removed",
+          (unsigned long)windowed, (long)count, (unsigned long)evict.count);
 }
 
 /// Runs on _queue with the handle already in hand.

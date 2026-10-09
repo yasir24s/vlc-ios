@@ -4,6 +4,10 @@
 
 #import "VLCTorrentPlaybackCoordinator.h"
 
+#if TARGET_OS_IOS
+#import <BackgroundTasks/BackgroundTasks.h>
+#endif
+
 #import "VLCPlaybackService.h"
 #import "VLCTorrentHTTPServer.h"
 #import "VLCTorrentFilesViewController.h"
@@ -35,6 +39,11 @@ static NSTimeInterval const kUpNextLeadTime = 90.0;
 /// repeated on every position tick for its final minute and a half.
 static NSInteger const kNoNextFile = -2;
 
+#if TARGET_OS_IOS
+/// Also listed under BGTaskSchedulerPermittedIdentifiers in Info.plist.
+static NSString *const kPredownloadTaskIdentifier = @"com.yasirali.vlctorrent.predownload";
+#endif
+
 @implementation VLCTorrentPlaybackCoordinator {
     UIAlertController *_progressAlert;
     NSString *_pendingInfoHash;
@@ -54,6 +63,11 @@ static NSInteger const kNoNextFile = -2;
     NSInteger _expectedFileIndex;
     /// The next episode already announced and prefetched, so that happens once.
     NSInteger _preparedFileIndex;
+    /// The file whose remembered tracks have been checked this time round, so
+    /// a choice the user then makes mid-episode is not overridden.
+    NSInteger _tracksSettledFileIndex;
+    /// Set while applying remembered tracks, so that is not recorded as a choice.
+    BOOL _applyingTracks;
 }
 
 - (instancetype)init
@@ -65,8 +79,13 @@ static NSInteger const kNoNextFile = -2;
         _playingFileIndex = NSNotFound;
         _expectedFileIndex = NSNotFound;
         _preparedFileIndex = NSNotFound;
+        _tracksSettledFileIndex = NSNotFound;
 
         NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
+        [center addObserver:self
+                   selector:@selector(userDidChangeTracks:)
+                       name:VLCPlaybackServiceUserDidChangeTracks
+                     object:nil];
         [center addObserver:self
                    selector:@selector(playbackDidMoveOnToNextItem:)
                        name:VLCPlaybackServicePlaybackDidMoveOnToNextItem
@@ -390,6 +409,8 @@ static NSInteger const kNoNextFile = -2;
 
     VLCMediaList *mediaList = [[VLCMediaList alloc] init];
     NSMutableArray<NSNumber *> *queued = [NSMutableArray array];
+    NSDictionary<NSString *, NSString *> *tracks =
+        [VLCTorrentLibrary.sharedLibrary trackPreferencesForInfoHash:infoHash];
     NSInteger startIndex = NSNotFound;
     for (VLCTorrentFile *file in ordered) {
         NSURL *url = [server streamURLForTorrentWithInfoHash:infoHash
@@ -399,6 +420,7 @@ static NSInteger const kNoNextFile = -2;
         }
         VLCMedia *media = [VLCMedia mediaWithURL:url];
         media.metaData.title = file.name;
+        [self applyTrackPreferences:tracks toMedia:media];
         if (file.index == fileIndex) {
             startIndex = (NSInteger)mediaList.count;
         }
@@ -415,6 +437,7 @@ static NSInteger const kNoNextFile = -2;
         }
         VLCMedia *media = [VLCMedia mediaWithURL:url];
         media.metaData.title = name;
+        [self applyTrackPreferences:tracks toMedia:media];
         [mediaList addMedia:media];
         [queued addObject:@(fileIndex)];
         startIndex = 0;
@@ -520,6 +543,7 @@ static NSInteger const kNoNextFile = -2;
             _playingInfoHash = hash;
             _playingFileIndex = index;
             _preparedFileIndex = NSNotFound;
+            _tracksSettledFileIndex = NSNotFound;
             _expectedInfoHash = nil;
             _expectedFileIndex = NSNotFound;
         }
@@ -540,6 +564,7 @@ static NSInteger const kNoNextFile = -2;
     _playingInfoHash = hash;
     _playingFileIndex = index;
     _preparedFileIndex = NSNotFound;
+    _tracksSettledFileIndex = NSNotFound;
 }
 
 - (void)resetPlayingState
@@ -549,6 +574,7 @@ static NSInteger const kNoNextFile = -2;
     _expectedInfoHash = nil;
     _expectedFileIndex = NSNotFound;
     _preparedFileIndex = NSNotFound;
+    _tracksSettledFileIndex = NSNotFound;
 }
 
 - (void)playbackDidMoveOnToNextItem:(NSNotification *)notification
@@ -566,6 +592,7 @@ static NSInteger const kNoNextFile = -2;
     [self syncWithCurrentMedia];
     if (_playingInfoHash && !_expectedInfoHash) {
         [self prepareNextEpisodeIfDue];
+        [self settleTracksIfDue];
     }
 }
 
@@ -623,6 +650,217 @@ static NSInteger const kNoNextFile = -2;
     }
     return nil;
 }
+
+#pragma mark - Remembered tracks
+
+/// The fast path: libvlc picks the matching track itself the moment it appears,
+/// so an episode starts in the right language rather than switching into it.
+- (void)applyTrackPreferences:(nullable NSDictionary<NSString *, NSString *> *)tracks
+                      toMedia:(VLCMedia *)media
+{
+    NSString *audio = tracks[@"audio"];
+    NSString *subtitle = tracks[@"subtitle"];
+    if (audio.length > 0) {
+        [media addOption:[@":audio-language=" stringByAppendingString:audio]];
+    }
+    if ([subtitle isEqualToString:@"off"]) {
+        // "none" stops libvlc falling back to another language.
+        [media addOption:@":sub-language=none"];
+    } else if (subtitle.length > 0) {
+        [media addOption:[@":sub-language=" stringByAppendingString:subtitle]];
+    }
+}
+
+/// The slow path, once per episode after it starts: catches what language
+/// matching alone cannot -- a track with no language tag, found by its name,
+/// or a file whose default-flagged subtitles ignored "none".
+- (void)settleTracksIfDue
+{
+    if (_tracksSettledFileIndex == _playingFileIndex) {
+        return;
+    }
+    VLCPlaybackService *playback = VLCPlaybackService.sharedInstance;
+    // Tracks appear as the demuxer finds them; a second in, they have.
+    if (playback.playedTime.intValue < 1000 || playback.audioTracks.count == 0) {
+        return;
+    }
+    _tracksSettledFileIndex = _playingFileIndex;
+
+    NSDictionary<NSString *, NSString *> *tracks =
+        [VLCTorrentLibrary.sharedLibrary trackPreferencesForInfoHash:_playingInfoHash];
+    if (!tracks) {
+        return;
+    }
+    _applyingTracks = YES;
+    NSArray<VLCMediaPlayerTrack *> *audioTracks = playback.audioTracks;
+    NSInteger const audio = [self indexOfTrackIn:audioTracks
+                                        language:tracks[@"audio"] name:tracks[@"audioName"]];
+    if (audio != NSNotFound && !audioTracks[(NSUInteger)audio].isSelected) {
+        [playback selectAudioTrackAtIndex:audio];
+    }
+    NSArray<VLCMediaPlayerTrack *> *textTracks = playback.textTracks;
+    if ([tracks[@"subtitle"] isEqualToString:@"off"]) {
+        for (VLCMediaPlayerTrack *track in textTracks) {
+            if (track.isSelected) {
+                [playback disablePrimaryVideoSubtitle];
+                break;
+            }
+        }
+    } else {
+        NSInteger const subtitle = [self indexOfTrackIn:textTracks
+                                               language:tracks[@"subtitle"]
+                                                   name:tracks[@"subtitleName"]];
+        if (subtitle != NSNotFound && !textTracks[(NSUInteger)subtitle].isSelected) {
+            [playback selectPrimaryVideoSubtitleAtIndex:subtitle];
+        }
+    }
+    _applyingTracks = NO;
+}
+
+/// Language and name together first: two English subtitle tracks -- full and
+/// signs-only -- share a language and differ only by name. Then by name alone,
+/// for tracks with no language tag, then by language alone.
+- (NSInteger)indexOfTrackIn:(NSArray<VLCMediaPlayerTrack *> *)tracks
+                   language:(nullable NSString *)language
+                       name:(nullable NSString *)name
+{
+    NSInteger byName = NSNotFound;
+    NSInteger byLanguage = NSNotFound;
+    for (NSUInteger position = 0; position < tracks.count; position++) {
+        VLCMediaPlayerTrack *track = tracks[position];
+        // Both sides checked for length: messaging nil returns 0, which is
+        // NSOrderedSame, so an untagged track would otherwise match anything.
+        BOOL const sameLanguage = language.length > 0 && track.language.length > 0 &&
+            [track.language caseInsensitiveCompare:language] == NSOrderedSame;
+        BOOL const sameName = name.length > 0 && track.trackName.length > 0 &&
+            [track.trackName caseInsensitiveCompare:name] == NSOrderedSame;
+        if (sameLanguage && sameName) {
+            return (NSInteger)position;
+        }
+        if (sameName && byName == NSNotFound) {
+            byName = (NSInteger)position;
+        }
+        if (sameLanguage && byLanguage == NSNotFound) {
+            byLanguage = (NSInteger)position;
+        }
+    }
+    return byName != NSNotFound ? byName : byLanguage;
+}
+
+- (void)userDidChangeTracks:(NSNotification *)notification
+{
+    if (_applyingTracks || !_playingInfoHash || _expectedInfoHash) {
+        return;
+    }
+    NSString *type = notification.userInfo[VLCPlaybackServiceTrackTypeKey];
+    NSInteger const index = [notification.userInfo[VLCPlaybackServiceTrackIndexKey] integerValue];
+    VLCPlaybackService *playback = VLCPlaybackService.sharedInstance;
+    NSMutableDictionary<NSString *, NSString *> *tracks =
+        [[VLCTorrentLibrary.sharedLibrary trackPreferencesForInfoHash:_playingInfoHash] mutableCopy]
+        ?: [NSMutableDictionary dictionary];
+
+    if ([type isEqualToString:@"audio"]) {
+        NSArray<VLCMediaPlayerTrack *> *audioTracks = playback.audioTracks;
+        // Muting is a moment's choice, not a preference worth carrying on.
+        if (index < 0 || index >= (NSInteger)audioTracks.count) {
+            return;
+        }
+        VLCMediaPlayerTrack *track = audioTracks[(NSUInteger)index];
+        tracks[@"audio"] = track.language ?: @"";
+        tracks[@"audioName"] = track.trackName ?: @"";
+    } else if ([type isEqualToString:@"subtitle"]) {
+        NSArray<VLCMediaPlayerTrack *> *textTracks = playback.textTracks;
+        if (index < 0) {
+            tracks[@"subtitle"] = @"off";
+            [tracks removeObjectForKey:@"subtitleName"];
+        } else if (index < (NSInteger)textTracks.count) {
+            VLCMediaPlayerTrack *track = textTracks[(NSUInteger)index];
+            tracks[@"subtitle"] = track.language ?: @"";
+            tracks[@"subtitleName"] = track.trackName ?: @"";
+        } else {
+            return;
+        }
+    } else {
+        return;
+    }
+    [VLCTorrentLibrary.sharedLibrary setTrackPreferences:tracks forInfoHash:_playingInfoHash];
+    // A choice made during this episode settles it; nothing to re-apply.
+    _tracksSettledFileIndex = _playingFileIndex;
+    NSLog(@"VLCTorrentPlaybackCoordinator: remembered %@ choice for this torrent", type);
+}
+
+#pragma mark - Background pre-downloading
+
++ (void)registerBackgroundTasks
+{
+#if TARGET_OS_IOS
+    [BGTaskScheduler.sharedScheduler registerForTaskWithIdentifier:kPredownloadTaskIdentifier
+                                                        usingQueue:nil
+                                                     launchHandler:^(BGTask *task) {
+        [VLCTorrentPlaybackCoordinator.sharedCoordinator runPredownloadTask:(BGProcessingTask *)task];
+    }];
+    [NSNotificationCenter.defaultCenter addObserverForName:UIApplicationDidEnterBackgroundNotification
+                                                    object:nil
+                                                     queue:NSOperationQueue.mainQueue
+                                                usingBlock:^(NSNotification *notification) {
+        [VLCTorrentPlaybackCoordinator schedulePredownloadTaskIfNeeded];
+    }];
+#endif
+}
+
+#if TARGET_OS_IOS
++ (void)schedulePredownloadTaskIfNeeded
+{
+    if (!VLCTorrentService.sharedService.isRunning ||
+        !VLCTorrentService.sharedService.hasPendingPredownloads) {
+        return;
+    }
+    BGProcessingTaskRequest *request =
+        [[BGProcessingTaskRequest alloc] initWithIdentifier:kPredownloadTaskIdentifier];
+    request.requiresNetworkConnectivity = YES;
+    // Gigabytes of episodes are a job for the charger, not the battery. The
+    // engine already pauses on cellular, so the network is Wi-Fi in practice.
+    request.requiresExternalPower = YES;
+    NSError *error;
+    if (![BGTaskScheduler.sharedScheduler submitTaskRequest:request error:&error]) {
+        NSLog(@"VLCTorrentPlaybackCoordinator: could not schedule pre-download: %@", error);
+    }
+}
+
+- (void)runPredownloadTask:(BGProcessingTask *)task
+{
+    VLCTorrentService *service = VLCTorrentService.sharedService;
+    if (!service.isRunning) {
+        // Relaunched in the background: the session restores each torrent with
+        // its file priorities, so the window picks up where it was.
+        [service start];
+    }
+    __block BOOL completed = NO;
+    __block NSTimer *poll = nil;
+    void (^finish)(BOOL) = ^(BOOL success) {
+        if (completed) {
+            return;
+        }
+        completed = YES;
+        [poll invalidate];
+        [service saveState];
+        if (!success) {
+            [VLCTorrentPlaybackCoordinator schedulePredownloadTaskIfNeeded];
+        }
+        [task setTaskCompletedWithSuccess:success];
+    };
+    task.expirationHandler = ^{
+        dispatch_async(dispatch_get_main_queue(), ^{
+            finish(NO);
+        });
+    };
+    poll = [NSTimer scheduledTimerWithTimeInterval:30.0 repeats:YES block:^(NSTimer *timer) {
+        if (!service.hasPendingPredownloads) {
+            finish(YES);
+        }
+    }];
+}
+#endif
 
 #pragma mark - UI
 

@@ -51,6 +51,9 @@ NSString *const VLCPlaybackServicePlaybackPositionUpdated = @"VLCPlaybackService
 NSString *const VLCPlaybackServicePlaybackModeUpdated = @"VLCPlaybackServicePlaybackModeUpdated";
 NSString *const VLCPlaybackServiceShuffleModeUpdated = @"VLCPlaybackServiceShuffleModeUpdated";
 NSString *const VLCPlaybackServicePlaybackDidMoveOnToNextItem = @"VLCPlaybackServicePlaybackDidMoveOnToNextItem";
+NSString *const VLCPlaybackServiceUserDidChangeTracks = @"VLCPlaybackServiceUserDidChangeTracks";
+NSString *const VLCPlaybackServiceTrackTypeKey = @"type";
+NSString *const VLCPlaybackServiceTrackIndexKey = @"index";
 NSString *const VLCLastPlaylistPlayedMedia = @"LastPlaylistPlayedMedia";
 
 #if TARGET_OS_TV
@@ -907,11 +910,22 @@ NSString *const VLCLastPlaylistPlayedMedia = @"LastPlaylistPlayedMedia";
 - (void)selectAudioTrackAtIndex:(NSInteger)index
 {
     [_mediaPlayer selectTrackAtIndex:index type:VLCMediaTrackTypeAudio];
+    [self postTrackChangeOfType:@"audio" index:index];
 }
 
 - (void)disableAudio
 {
     [_mediaPlayer deselectAllAudioTracks];
+    [self postTrackChangeOfType:@"audio" index:-1];
+}
+
+- (void)postTrackChangeOfType:(NSString *)type index:(NSInteger)index
+{
+    [[NSNotificationCenter defaultCenter]
+        postNotificationName:VLCPlaybackServiceUserDidChangeTracks
+                      object:self
+                    userInfo:@{ VLCPlaybackServiceTrackTypeKey: type,
+                                VLCPlaybackServiceTrackIndexKey: @(index) }];
 }
 
 - (void)selectPrimaryVideoSubtitleAtIndex:(NSInteger)index {
@@ -924,6 +938,7 @@ NSString *const VLCLastPlaylistPlayedMedia = @"LastPlaylistPlayedMedia";
         
         _primaryVideoSubtitleTrackIndex = index;
         [self syncVideoSubtitleState];
+        [self postTrackChangeOfType:@"subtitle" index:index];
     }
 }
 
@@ -959,6 +974,7 @@ NSString *const VLCLastPlaylistPlayedMedia = @"LastPlaylistPlayedMedia";
 {
     _primaryVideoSubtitleTrackIndex = -1;
     [self syncVideoSubtitleState];
+    [self postTrackChangeOfType:@"subtitle" index:-1];
 }
 
 - (void)disableSecondaryVideoSubtitle

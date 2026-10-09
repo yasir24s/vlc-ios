@@ -956,3 +956,14 @@
 "This device only: your other devices keep it.\nAll devices: it goes from every device signed in to your iCloud account." = "This device only: your other devices keep it.\nAll devices: it goes from every device signed in to your iCloud account.";
 "This link was never shared with your other devices." = "This link was never shared with your other devices.";
 "Up next: %@" = "Up next: %@";
+
+/* New strings */
+"%@ - downloading ahead" = "%@ - downloading ahead";
+"Download Next 10" = "Download Next 10";
+"Download ahead while you watch?" = "Download ahead while you watch?";
+"Downloads upcoming episodes on Wi-Fi while you watch, and removes each once you have moved past it. Off removes any already downloaded ahead." = "Downloads upcoming episodes on Wi-Fi while you watch, and removes each once you have moved past it. Off removes any already downloaded ahead.";
+"Keep %@ Episodes Ahead" = "Keep %@ Episodes Ahead";
+"Never for This Show" = "Never for This Show";
+"Not Now" = "Not Now";
+"Off" = "Off";
+"This looks like a TV show. VLCTorrent can keep the next 10 episodes downloaded on Wi-Fi while you watch, and remove each one once you have moved past it." = "This looks like a TV show. VLCTorrent can keep the next 10 episodes downloaded on Wi-Fi while you watch, and remove each one once you have moved past it.";

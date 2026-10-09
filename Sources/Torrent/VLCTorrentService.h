@@ -162,6 +162,25 @@ typedef NS_ERROR_ENUM(VLCTorrentErrorDomain, VLCTorrentError) {
 /// Session-level state, for diagnostics.
 - (NSString *)sessionDiagnostics;
 
+#pragma mark - Pre-downloading
+
+/// YES when most of a torrent's playable files read as episodes -- S01E02,
+/// 1x02, "Episode 2", or an anime-style " - 02 " -- rather than a film or a
+/// loose collection. NO without metadata.
+- (BOOL)isEpisodicTorrentWithInfoHash:(NSString *)infoHash;
+
+/// How many episodes past the one streaming to keep downloaded: a rolling
+/// window, so each is removed once passed unless kept. 0 is off; NSNotFound
+/// means the user was never asked about this torrent.
+- (NSInteger)predownloadCountForTorrentWithInfoHash:(NSString *)infoHash;
+/// Stores the window and applies it at once if something is streaming. 0 turns
+/// it off and removes the episodes downloaded ahead.
+- (void)setPredownloadCount:(NSInteger)count forTorrentWithInfoHash:(NSString *)infoHash;
+
+/// YES while any torrent with a window still has bytes to fetch, which is
+/// when background time from iOS is worth asking for.
+@property (nonatomic, readonly) BOOL hasPendingPredownloads;
+
 #pragma mark - Streaming support
 
 /// Playable files in playback order: natural alphanumeric by path, so

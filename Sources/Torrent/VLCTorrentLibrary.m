@@ -22,6 +22,9 @@ static NSString *const kCloudBookmarkPrefix = @"bm.";
 /// A removal has to be published, not merely applied. A device that was offline
 /// when it happened still holds the magnet and would otherwise put it back.
 static NSString *const kCloudTombstonePrefix = @"rm.";
+/// The audio and subtitle language last picked while watching a torrent. The
+/// merge reads only the two prefixes above, so these never pass for bookmarks.
+static NSString *const kCloudTrackPrefix = @"tp.";
 
 #pragma mark - Bookmark
 
@@ -387,6 +390,24 @@ static NSString *const kCloudTombstonePrefix = @"rm.";
         return nil;
     }
     return keep;
+}
+
+#pragma mark - Track preferences
+
+- (nullable NSDictionary<NSString *, NSString *> *)trackPreferencesForInfoHash:(NSString *)infoHash
+{
+    id stored = [[self cloudStore] objectForKey:
+        [kCloudTrackPrefix stringByAppendingString:infoHash.lowercaseString]];
+    return [stored isKindOfClass:[NSDictionary class]] ? stored : nil;
+}
+
+- (void)setTrackPreferences:(NSDictionary<NSString *, NSString *> *)preferences
+                forInfoHash:(NSString *)infoHash
+{
+    NSUbiquitousKeyValueStore *store = [self cloudStore];
+    [store setDictionary:preferences
+                  forKey:[kCloudTrackPrefix stringByAppendingString:infoHash.lowercaseString]];
+    [store synchronize];
 }
 
 #pragma mark - Access

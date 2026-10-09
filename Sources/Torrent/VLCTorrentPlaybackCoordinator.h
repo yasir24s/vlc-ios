@@ -15,6 +15,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (class, nonatomic, readonly) VLCTorrentPlaybackCoordinator *sharedCoordinator;
 
+/// Registers the background task that pre-downloads episodes while the device
+/// charges. Must run before launch finishes, so call it from the app delegate.
++ (void)registerBackgroundTasks;
+
 /// YES for magnet links and .torrent files, i.e. anything libvlc cannot open
 /// itself and that should be routed through the torrent engine instead.
 + (BOOL)canHandleURL:(NSURL *)url NS_SWIFT_NAME(canHandle(_:));
