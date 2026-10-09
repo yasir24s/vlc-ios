@@ -70,6 +70,9 @@
 }
 
 #if !TARGET_OS_TV
+/// The most episodes the user can ask to keep downloaded ahead.
+static NSInteger const kMaximumEpisodesAhead = 10;
+
 /// How far ahead to stay, changeable any time -- otherwise an answer given at
 /// the prompt, "never" included, could not be taken back.
 - (void)updatePredownloadMenu
@@ -81,15 +84,14 @@
     NSInteger const current = [service predownloadCountForTorrentWithInfoHash:self.infoHash];
     __weak VLCTorrentFilesViewController *weakSelf = self;
     NSMutableArray<UIMenuElement *> *choices = [NSMutableArray array];
-    for (NSNumber *count in @[@10, @5, @3]) {
-        UIAction *action = [UIAction actionWithTitle:[NSString stringWithFormat:
-                                NSLocalizedString(@"Keep %@ Episodes Ahead", nil), count]
+    for (NSInteger count = 1; count <= kMaximumEpisodesAhead; count++) {
+        UIAction *action = [UIAction actionWithTitle:[self titleForEpisodeCount:count]
                                                image:nil
                                           identifier:nil
                                              handler:^(UIAction *chosen) {
-            [weakSelf setPredownloadCount:count.integerValue];
+            [weakSelf setPredownloadCount:count];
         }];
-        action.state = current == count.integerValue ? UIMenuElementStateOn : UIMenuElementStateOff;
+        action.state = current == count ? UIMenuElementStateOn : UIMenuElementStateOff;
         [choices addObject:action];
     }
     UIAction *off = [UIAction actionWithTitle:NSLocalizedString(@"Off", nil)
@@ -107,6 +109,12 @@
     self.navigationItem.rightBarButtonItem =
         [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"arrow.down.circle"]
                                           menu:menu];
+}
+
+- (NSString *)titleForEpisodeCount:(NSInteger)count
+{
+    return count == 1 ? NSLocalizedString(@"1 Episode Ahead", nil)
+                      : [NSString stringWithFormat:NSLocalizedString(@"%ld Episodes Ahead", nil), (long)count];
 }
 
 - (void)setPredownloadCount:(NSInteger)count
@@ -307,34 +315,43 @@
 
 #if !TARGET_OS_TV
 /// Asked once per show, before the first episode, because it is a real cost in
-/// disk and data. "Not now" asks again next time; the other two are kept, and
-/// the toolbar menu changes them later.
+/// disk and data. "Not now" asks again next time; a number or "never" is kept,
+/// and the toolbar menu changes it later.
 - (void)askAboutPredownloadingThenStream:(NSInteger)fileIndex
 {
-    UIAlertController *alert = [UIAlertController
+    // A sheet rather than an alert: it is a list to pick from, one to ten.
+    UIAlertController *sheet = [UIAlertController
         alertControllerWithTitle:NSLocalizedString(@"Download ahead while you watch?", nil)
-                         message:NSLocalizedString(@"This looks like a TV show. VLCTorrent can keep the next 10 episodes downloaded on Wi-Fi while you watch, and remove each one once you have moved past it.", nil)
-                  preferredStyle:UIAlertControllerStyleAlert];
+                         message:NSLocalizedString(@"This looks like a TV show. Choose how many upcoming episodes to keep downloaded on Wi-Fi while you watch. Each is removed once you have moved past it.", nil)
+                  preferredStyle:UIAlertControllerStyleActionSheet];
     __weak VLCTorrentFilesViewController *weakSelf = self;
     NSString *infoHash = self.infoHash;
-    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Download Next 10", nil)
-                                              style:UIAlertActionStyleDefault
-                                            handler:^(UIAlertAction *action) {
-        [VLCTorrentService.sharedService setPredownloadCount:10 forTorrentWithInfoHash:infoHash];
-        [weakSelf startStreamingFileIndex:fileIndex];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Not Now", nil)
-                                              style:UIAlertActionStyleCancel
-                                            handler:^(UIAlertAction *action) {
-        [weakSelf startStreamingFileIndex:fileIndex];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Never for This Show", nil)
-                                              style:UIAlertActionStyleDefault
+    for (NSInteger count = 1; count <= kMaximumEpisodesAhead; count++) {
+        [sheet addAction:[UIAlertAction actionWithTitle:[self titleForEpisodeCount:count]
+                                                  style:UIAlertActionStyleDefault
+                                                handler:^(UIAlertAction *action) {
+            [VLCTorrentService.sharedService setPredownloadCount:count forTorrentWithInfoHash:infoHash];
+            [weakSelf startStreamingFileIndex:fileIndex];
+        }]];
+    }
+    [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Never for This Show", nil)
+                                              style:UIAlertActionStyleDestructive
                                             handler:^(UIAlertAction *action) {
         [VLCTorrentService.sharedService setPredownloadCount:0 forTorrentWithInfoHash:infoHash];
         [weakSelf startStreamingFileIndex:fileIndex];
     }]];
-    [self presentViewController:alert animated:YES completion:nil];
+    [sheet addAction:[UIAlertAction actionWithTitle:NSLocalizedString(@"Not Now", nil)
+                                              style:UIAlertActionStyleCancel
+                                            handler:^(UIAlertAction *action) {
+        [weakSelf startStreamingFileIndex:fileIndex];
+    }]];
+    // On iPad a sheet is a popover. The question is about the show, not any
+    // one row, so it sits in the middle without an arrow.
+    sheet.popoverPresentationController.sourceView = self.view;
+    sheet.popoverPresentationController.sourceRect =
+        CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMidY(self.view.bounds), 0, 0);
+    sheet.popoverPresentationController.permittedArrowDirections = 0;
+    [self presentViewController:sheet animated:YES completion:nil];
 }
 #endif
 
